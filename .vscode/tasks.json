@@ -1,0 +1,51 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Build",
+			"type": "shell",
+			"command": "./build.bat",  // Path to your script
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			},
+			"presentation": {
+				"reveal": "always",  // Reveal the terminal every time
+				"panel": "shared"    // Keep output in the same terminal panel
+			},
+			"problemMatcher": []
+		},
+		
+		{
+			"label": "Run",
+			"type": "shell",
+			"command": "./run.bat",
+			"group": {
+				"kind": "test",
+				"isDefault": true
+			},
+			"presentation": {
+				"reveal": "always",
+				"focus": true,
+				"panel": "shared",
+			}
+		},
+		
+		{
+			"label": "Build & Run",
+			"type": "shell",
+			"dependsOn": ["Build", "Run"],
+			
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			},
+			"presentation": {
+				"reveal": "always",
+				"panel": "shared"
+			},
+			"problemMatcher": []
+		}
+	],
+
+}

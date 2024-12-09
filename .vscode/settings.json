@@ -1,0 +1,11 @@
+{
+	"editor.insertSpaces": true,
+    "java.project.referencedLibraries": [
+        "lib/Raylib-J-0.5.2.jar"
+    ],
+    "java.completion.favoriteStaticMembers": [
+        "com.raylib.java.Raylib.*",
+        "com.raylib.java.Raylib",
+        "org.junit.Assert.*"
+    ]
+}

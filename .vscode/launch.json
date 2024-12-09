@@ -1,0 +1,12 @@
+{
+	"version": "0.2.0",
+	"configurations": [
+		{
+			"name": "Run Build and Launch",
+			"type": "java",  // Change based on your environment
+			"request": "attach",
+			"program": "",
+			"preLaunchTask": "Build & Run",  // Task label
+		  }
+	]
+  }
