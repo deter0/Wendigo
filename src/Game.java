@@ -41,6 +41,8 @@ public class Game extends JPanel implements Runnable, KeyListener {
 
     static Vector2 mousePos = new Vector2(); // Mouse position so classes can access Game.mousePos
     
+    public static double FPS;
+
     // All fonts
     public static Font font16;
     public static Font font32;
@@ -48,7 +50,9 @@ public class Game extends JPanel implements Runnable, KeyListener {
 
     // Time stuff
     public static double gameStart = System.currentTimeMillis()/1000.0;
-    public static double now = gameStart;
+    public static double now() {
+        return System.currentTimeMillis()/1000.0;
+    }
 
     // Good Graphics
     public static GG gg = new GG();
@@ -91,17 +95,35 @@ public class Game extends JPanel implements Runnable, KeyListener {
     }
 
     public void Update(double deltaTime) {
+        FPS = 1.0 / deltaTime;
+
+        Game.WIDTH = this.getWidth();
+        Game.HEIGHT = this.getHeight();
+
         // System.out.println("Game tick! At " + 1.0/deltaTime + "TPS");
+    }
+
+    private void DrawFPS(Graphics2D g) {
+        g.setFont(Game.font32);
+        
+        String text = Long.toString(Math.round(Game.FPS)) + " FPS";
+        FontMetrics m = g.getFontMetrics();
+        int textWidth = m.stringWidth(text);
+
+        g.setColor(Color.GREEN);
+        g.drawString(text, Game.WIDTH - textWidth - 10, 32 + 10);
     }
 
     public void Draw(Graphics2D g) {
         g.setColor(Color.WHITE);
         g.fill3DRect(0, 0, 100, 100, true);
 
-        GG.fillOval(Math.sin(Game.now * 2.0) * 100.0 + 200.0, 150.0, 50.0, 50.0);
+        GG.fillOval(Math.sin(Game.now() * 2.0) * 100.0 + 200.0, 150.0, 50.0, 50.0);
 
         g.setFont(Game.font32);
-        g.drawString("Press escape to exit", 300, 400);
+        g.drawString("Press escape to exit 1234567890", 300, 400);
+        
+        this.DrawFPS(g);
     }
 
     @Override
@@ -143,8 +165,7 @@ public class Game extends JPanel implements Runnable, KeyListener {
         double deltaTick = 0;
 
         while (Game.gameRunning) { // Loop while game is running
-            Game.now = System.currentTimeMillis()/1000.0; // Get the time
-            deltaTick = Game.now - lastTick; // Calculate delta
+            deltaTick = Game.now() - lastTick; // Calculate delta
 
             // Update mouse position
             Point mp = this.getMousePosition();
@@ -154,7 +175,7 @@ public class Game extends JPanel implements Runnable, KeyListener {
             if (deltaTick >= 1.0/TARGET_FPS) { // If we're ready to render a frame render it
                 Update(deltaTick);
                 repaint(); // Tell the panel to call paint
-                lastTick = now; // Update last tick
+                lastTick = Game.now(); // Update last tick
             } else {
                 try {
                     Thread.sleep((long)((1.0/TARGET_FPS - deltaTick)*1000.0), 0); // Sleep 1ms if we're doing nothing so we don't bog CPU
