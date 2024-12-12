@@ -30,7 +30,7 @@ public class GameFrame extends JFrame {
         // Set properties
         this.setResizable(resizable);
         this.setSize(init_width, init_height);
-        this.setUndecorated(true);
+        this.setUndecorated(false);
         this.setMinimumSize(new Dimension(min_width, min_height));
         this.setBackground(Color.BLACK);
         this.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE); // X button will stop program execution
