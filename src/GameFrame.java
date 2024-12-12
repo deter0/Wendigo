@@ -32,7 +32,7 @@ public class GameFrame extends JFrame {
         this.setSize(init_width, init_height);
         this.setUndecorated(true);
         this.setMinimumSize(new Dimension(min_width, min_height));
-        this.setBackground(new Color(0, 0, 0, 0));
+        this.setBackground(Color.BLACK);
         this.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE); // X button will stop program execution
         this.pack(); // makes components fit in window - don't need to set JFrame size, as it will adjust accordingly
         this.setVisible(true); // makes window visible to user
