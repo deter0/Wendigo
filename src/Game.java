@@ -31,8 +31,9 @@ public class Game extends JPanel implements Runnable, KeyListener {
     /*
      * Same as above
      */
-    public static boolean[] mouesButtonsDown = new boolean[3]; // LMB, MMB, RMB
-    public static boolean[] mouesButtonsDownLastFrame = new boolean[3];
+    public static final int MAX_MOUSE_BUTTONS = 5;
+    public static boolean[] mouseButtonsDown = new boolean[MAX_MOUSE_BUTTONS]; // LMB, MMB, RMB, etc.
+    public static boolean[] mouseButtonsDownLastFrame = new boolean[MAX_MOUSE_BUTTONS];
 
     public static boolean gameRunning = true; // Game running, modifiable
     
@@ -41,6 +42,7 @@ public class Game extends JPanel implements Runnable, KeyListener {
 
     static Vector2 mousePos = new Vector2(); // Mouse position so classes can access Game.mousePos
     
+    // Last reported FPS
     public static double FPS;
 
     // All fonts
@@ -54,8 +56,14 @@ public class Game extends JPanel implements Runnable, KeyListener {
         return System.currentTimeMillis()/1000.0;
     }
 
+    // Current cursor
+    public static Cursor currentCursor = null;
+
     // Good Graphics
     public static GG gg = new GG();
+
+    // Map Editor
+    public static TileMapEditor mapEditor = new TileMapEditor();
 
     public Game(JFrame parentFrame) {
         this.parentJFrame = parentFrame;
@@ -63,18 +71,39 @@ public class Game extends JPanel implements Runnable, KeyListener {
         this.setFocusable(true); // make everything in this class appear on the screen
         this.addKeyListener(this); // start listening for keyboard input
         
+        Game game = this;
         addMouseListener(new MouseAdapter() {
 			public void mousePressed(MouseEvent e) {
-                int mouseButtonIndex = e.getButton() - 1; // Starts from 1
-                if (mouseButtonIndex >= 0 && mouseButtonIndex < Game.mouesButtonsDown.length) { // If we keep track of it
+                int mouseButtonIndex = e.getButton();
+                if (mouseButtonIndex >= 0 && mouseButtonIndex < Game.mouseButtonsDown.length) { // If we keep track of it
                     if (e.getID() == MouseEvent.MOUSE_PRESSED) { // If it's pressed store it in the array, otherwise reset it
-                        Game.mouesButtonsDown[mouseButtonIndex] = true;
-                    } else if (e.getID() == MouseEvent.MOUSE_RELEASED) {
-                        Game.mouesButtonsDown[mouseButtonIndex] = false;
+                        Game.mouseButtonsDown[mouseButtonIndex] = true;
                     }
                 }
 			}
+            public void mouseReleased(MouseEvent e) {
+                int mouseButtonIndex = e.getButton();
+                if (mouseButtonIndex >= 0 && mouseButtonIndex < Game.mouseButtonsDown.length) { // If we keep track of it
+                    if (e.getID() == MouseEvent.MOUSE_RELEASED) { // If it's released store that info  in the array
+                        Game.mouseButtonsDown[mouseButtonIndex] = false;
+                    }
+                }
+            }
 		});
+        addMouseMotionListener(new MouseMotionListener() {
+            @Override
+            public void mouseMoved(MouseEvent e) {
+                if (Game.currentCursor != null) {
+                    game.setCursor(Game.currentCursor);
+                }
+            }
+            @Override
+            public void mouseDragged(MouseEvent e) {
+                if (Game.currentCursor != null) {
+                    game.setCursor(Game.currentCursor);
+                }
+            }
+        });
 
         System.out.println("[LOG]: Loading fonts");
         // Try to load fonts from file or else print errors and load fallback font
@@ -92,14 +121,16 @@ public class Game extends JPanel implements Runnable, KeyListener {
         this.gameThread = new Thread(this);
         System.out.println("[LOG]: Starting game thread.");
         this.gameThread.start(); // Start game 
+
+        // Maximize window
+        this.parentJFrame.setExtendedState( this.parentJFrame.getExtendedState()|JFrame.MAXIMIZED_BOTH );
+
+        TileMap testMap = new TileMap("foenam !");
+        mapEditor.EditMap(testMap);
     }
 
     public void Update(double deltaTime) {
-        FPS = 1.0 / deltaTime;
-
-        Game.WIDTH = this.getWidth();
-        Game.HEIGHT = this.getHeight();
-
+        Game.mapEditor.Update(deltaTime);
         // System.out.println("Game tick! At " + 1.0/deltaTime + "TPS");
     }
 
@@ -122,7 +153,11 @@ public class Game extends JPanel implements Runnable, KeyListener {
 
         g.setFont(Game.font32);
         g.drawString("Press escape to exit 1234567890", 300, 400);
-        
+
+        if (Game.mapEditor.isDrawn) {
+            Game.mapEditor.Draw(g);
+        }
+
         this.DrawFPS(g);
     }
 
@@ -145,7 +180,14 @@ public class Game extends JPanel implements Runnable, KeyListener {
         g.setColor(Color.BLACK);
         g.fillRect(0, 0, WIDTH, HEIGHT);
 
+        
+        Game.currentCursor = Cursor.getPredefinedCursor(Cursor.DEFAULT_CURSOR);
         this.Draw(g);
+        
+        // Update mouse button down arrays
+        for (int i = 0; i < Game.mouseButtonsDown.length; i++) {
+            Game.mouseButtonsDownLastFrame[i] = Game.mouseButtonsDown[i];
+        }
     }
 
     @Override
@@ -162,23 +204,34 @@ public class Game extends JPanel implements Runnable, KeyListener {
         
         // Last time
         double lastTick = System.currentTimeMillis()/1000.0;
-        double deltaTick = 0;
+        double deltaTime = 0;
 
         while (Game.gameRunning) { // Loop while game is running
-            deltaTick = Game.now() - lastTick; // Calculate delta
+            deltaTime = Game.now() - lastTick; // Calculate delta
 
             // Update mouse position
             Point mp = this.getMousePosition();
             if (mp != null)
                 Game.mousePos = new Vector2(mp.x, mp.y);
 
-            if (deltaTick >= 1.0/TARGET_FPS) { // If we're ready to render a frame render it
-                Update(deltaTick);
+            if (deltaTime >= 1.0/TARGET_FPS) { // If we're ready to render a frame render it
+                FPS = 1.0 / deltaTime;
+
+                Game.WIDTH = this.getWidth();
+                Game.HEIGHT = this.getHeight();
+
+                Update(deltaTime);
                 repaint(); // Tell the panel to call paint
                 lastTick = Game.now(); // Update last tick
+
+                // Update keysdown array
+                for (int i = 0; i < Game.keysDown.length; i++) {
+                    Game.keysDownLastFrame[i] = Game.keysDown[i];
+                    Game.keysDown[i] = false;
+                }
             } else {
                 try {
-                    Thread.sleep((long)((1.0/TARGET_FPS - deltaTick)*1000.0), 0); // Sleep 1ms if we're doing nothing so we don't bog CPU
+                    Thread.sleep((long)((1.0/TARGET_FPS - deltaTime)*900.0), 0); // Sleep 1ms if we're doing nothing so we don't bog CPU
                 } catch (InterruptedException err) {
                     System.err.println(err);
                 }
@@ -200,7 +253,7 @@ public class Game extends JPanel implements Runnable, KeyListener {
         }
 
         // Set the fonts
-        Game.font16 = new Font(fontName, Font.PLAIN, 16);
+        Game.font16 = new Font(fontName, Font.PLAIN, 24);
         Game.font32 = new Font(fontName, Font.PLAIN, 32);
         Game.font64 = new Font(fontName, Font.PLAIN, 64);
     }
@@ -227,7 +280,7 @@ public class Game extends JPanel implements Runnable, KeyListener {
         Game.SetFonts(PixelifySans[0].getFontName());
     }
 
-    static boolean IsKeyDown(int keycode) { // JFrame function override
+    static boolean IsKeyDown(int keycode) {
         return Game.keysDown[keycode] == true; // Check if it's down in our array'
     }
     static boolean IsKeyPressed(int keycode) {
@@ -235,6 +288,16 @@ public class Game extends JPanel implements Runnable, KeyListener {
     }
     static boolean IsKeyReleased(int keycode) {
         return Game.keysDown[keycode] == false && Game.keysDownLastFrame[keycode] == true; // Opposite for this
+    }
+
+    static boolean IsMouseDown(int mouseButton) {
+        return Game.mouseButtonsDown[mouseButton] == true; // Check if it's down in our array'
+    }
+    static boolean IsMousePressed(int mouseButton) {
+        return Game.mouseButtonsDown[mouseButton] == true && Game.mouseButtonsDownLastFrame[mouseButton] == false; // It's just pressed if it wasn't pressed last frame but is now
+    }
+    static boolean IsMouseReleased(int mouseButton) {
+        return Game.mouseButtonsDown[mouseButton] == false && Game.mouseButtonsDownLastFrame[mouseButton] == true; // Opposite for this
     }
 
     @Override
