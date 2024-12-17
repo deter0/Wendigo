@@ -4,8 +4,13 @@ import java.awt.event.*;
 class TileMap extends GameObject {
     public String name;
 
-    public TileMap(String name) {
+    protected int width;
+    protected int height;
+
+    public TileMap(String name, int width, int height) {
         this.name = name;
+        this.width = width;
+        this.height = height;
     }
 
     public void Update(double dt) {
@@ -98,7 +103,7 @@ class Panel {
                         child.ComputeSize();
                         child.computedPosition = child.computedPosition.add(childPosition);
                         childPosition = childPosition.add(new Vector2(child.computedSize.x + this.fixedSpacing, 0.0));
-                        System.out.println(i + ": " + childPosition);
+                        // System.out.println(i + ": " + childPosition);
                         child.ComputeLayout();
                     }
                 }
@@ -120,7 +125,7 @@ class Panel {
                 //     childPosition = childPosition.add(new Vector2(child.computedSize.x + this.fixedSpacing, 0.0));
                 //     System.out.println(i + ": " + childPosition);
                 //     child.ComputeLayout();
-                // }
+                // }https://github.com/deter0/Wendigo.git
             }
         }
     }

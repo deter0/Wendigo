@@ -65,6 +65,8 @@ public class Game extends JPanel implements Runnable, KeyListener {
     // Map Editor
     public static TileMapEditor mapEditor = new TileMapEditor();
 
+    public Vector2 testPosition = new Vector2();
+
     public Game(JFrame parentFrame) {
         this.parentJFrame = parentFrame;
         
@@ -125,12 +127,19 @@ public class Game extends JPanel implements Runnable, KeyListener {
         // Maximize window
         this.parentJFrame.setExtendedState( this.parentJFrame.getExtendedState()|JFrame.MAXIMIZED_BOTH );
 
-        TileMap testMap = new TileMap("foenam !");
+        TileMap testMap = new TileMap("foenam !", 20, 20);
         mapEditor.EditMap(testMap);
     }
 
     public void Update(double deltaTime) {
         Game.mapEditor.Update(deltaTime);
+
+        if (Game.IsKeyDown(KeyEvent.VK_S)) {
+            testPosition = testPosition.add(new Vector2(0, 100.0).scale(deltaTime));
+        }
+
+        System.out.println(Game.IsKeyDown(KeyEvent.VK_S));
+
         // System.out.println("Game tick! At " + 1.0/deltaTime + "TPS");
     }
 
@@ -158,6 +167,9 @@ public class Game extends JPanel implements Runnable, KeyListener {
             Game.mapEditor.Draw(g);
         }
 
+        g.setColor(Color.RED);
+        GG.fillRect(testPosition.x, testPosition.y, 100, 100);
+
         this.DrawFPS(g);
     }
 
@@ -180,7 +192,6 @@ public class Game extends JPanel implements Runnable, KeyListener {
         g.setColor(Color.BLACK);
         g.fillRect(0, 0, WIDTH, HEIGHT);
 
-        
         Game.currentCursor = Cursor.getPredefinedCursor(Cursor.DEFAULT_CURSOR);
         this.Draw(g);
         
@@ -222,7 +233,7 @@ public class Game extends JPanel implements Runnable, KeyListener {
 
                 Update(deltaTime);
                 repaint(); // Tell the panel to call paint
-                lastTick = Game.now(); // Update last tick
+                lastTick = Game.now(); //Update( Update last tick
 
                 // Update keysdown array
                 for (int i = 0; i < Game.keysDown.length; i++) {
@@ -323,6 +334,7 @@ public class Game extends JPanel implements Runnable, KeyListener {
         if (keyCode > MAX_KEYS) {
             System.err.println("[WARN]: Encountered a key in key up larger  than " + MAX_KEYS + ": " + keyCode);
         } else {
+            System.out.println("Key up!");
             Game.keysDown[keyCode] = false; // But false
         }
     }
