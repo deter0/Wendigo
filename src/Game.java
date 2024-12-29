@@ -14,7 +14,7 @@ import javax.swing.*;
 
 import java.awt.event.*;
 import java.awt.*;
-
+import java.awt.Graphics2D;
 import java.io.*;
 
 public class Game extends JPanel implements Runnable, KeyListener {
@@ -62,6 +62,7 @@ public class Game extends JPanel implements Runnable, KeyListener {
     // Good Graphics
     public static GG gg = new GG();
 
+    public static Player player = new Player(100, 100, 0);
     // Map Editor
     public static TileMapEditor mapEditor = new TileMapEditor();
 
@@ -133,7 +134,7 @@ public class Game extends JPanel implements Runnable, KeyListener {
 
     public void Update(double deltaTime) {
         Game.mapEditor.Update(deltaTime);
-
+        Game.player.Update(deltaTime);
         if (Game.IsKeyDown(KeyEvent.VK_S)) {
             testPosition = testPosition.add(new Vector2(0, 100.0).scale(deltaTime));
         }
@@ -157,7 +158,8 @@ public class Game extends JPanel implements Runnable, KeyListener {
     public void Draw(Graphics2D g) {
         g.setColor(Color.WHITE);
         g.fill3DRect(0, 0, 100, 100, true);
-
+        //draw player obj
+        player.Draw(g);
         GG.fillOval(Math.sin(Game.now() * 2.0) * 100.0 + 200.0, 150.0, 50.0, 50.0);
 
         g.setFont(Game.font32);
