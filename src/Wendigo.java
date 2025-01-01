@@ -8,8 +8,8 @@ public class Wendigo {
             public void componentResized(ComponentEvent ev) {
                 Component c = (Component)ev.getSource();
                 if (c.equals(gf)) {
-                    Game.WIDTH = c.getWidth();
-                    Game.HEIGHT = c.getHeight();
+                    Game.WINDOW_WIDTH = c.getWidth();
+                    Game.WINDOW_HEIGHT = c.getHeight();
                 }
             }
         });

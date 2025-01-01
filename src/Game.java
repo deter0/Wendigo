@@ -13,6 +13,7 @@ Implements Runnable interface to use "threading" - let the game do two things at
 import javax.swing.*;
 
 import java.awt.event.*;
+import java.awt.geom.NoninvertibleTransformException;
 import java.awt.*;
 import java.awt.Graphics2D;
 import java.io.*;
@@ -35,10 +36,17 @@ public class Game extends JPanel implements Runnable, KeyListener {
     public static boolean[] mouseButtonsDown = new boolean[MAX_MOUSE_BUTTONS]; // LMB, MMB, RMB, etc.
     public static boolean[] mouseButtonsDownLastFrame = new boolean[MAX_MOUSE_BUTTONS];
 
+    private static double scrollThisFrame;
+    private static double scrollLastFrame;
+    public static double deltaScroll;
+
     public static boolean gameRunning = true; // Game running, modifiable
     
-    public static int WIDTH = 1600; // Variable Game size
-    public static int HEIGHT = 900;
+    public static int WINDOW_WIDTH = 1600; // Variable Game size
+    public static int WINDOW_HEIGHT = 900;
+
+    public static int WIDTH = WINDOW_WIDTH;
+    public static int HEIGHT = WINDOW_HEIGHT;
 
     static Vector2 mousePos = new Vector2(); // Mouse position so classes can access Game.mousePos
     
@@ -62,9 +70,12 @@ public class Game extends JPanel implements Runnable, KeyListener {
     // Good Graphics
     public static GG gg = new GG();
 
+    // Initialize the player
     public static Player player = new Player(100, 100, 0);
-    // Map Editor
-    public static TileMapEditor mapEditor = new TileMapEditor();
+
+    // Load test map
+    TileMap testMap;
+    TileMapEditor editor;
 
     public Vector2 testPosition = new Vector2();
 
@@ -93,6 +104,12 @@ public class Game extends JPanel implements Runnable, KeyListener {
                 }
             }
 		});
+        addMouseWheelListener(new MouseWheelListener() {
+           @Override
+           public void mouseWheelMoved(MouseWheelEvent e) {
+               Game.scrollThisFrame += e.getPreciseWheelRotation() * e.getScrollAmount();
+           } 
+        });
         addMouseMotionListener(new MouseMotionListener() {
             @Override
             public void mouseMoved(MouseEvent e) {
@@ -125,27 +142,34 @@ public class Game extends JPanel implements Runnable, KeyListener {
         System.out.println("[LOG]: Starting game thread.");
         this.gameThread.start(); // Start game 
 
+
+        this.testMap = new TileMap(20, 20);
+        this.editor = new TileMapEditor(testMap);
+        SpriteSheet def = this.testMap.LoadSpriteSheet("res/Tile_set.png", 16);
+        this.testMap.layers.get(0).SetTile(2, 0, def, 0);
+
+        for (int y = 5; y < 10; y++) {
+            for (int x = 5; x < 10; x++) {
+                this.testMap.layers.get(0).SetTile(x, y, def, 2);
+            }
+        }
+
         // Maximize window
         this.parentJFrame.setExtendedState( this.parentJFrame.getExtendedState()|JFrame.MAXIMIZED_BOTH );
-
-        TileMap testMap = new TileMap("foenam !", 20, 20);
-        mapEditor.EditMap(testMap);
     }
 
     public void Update(double deltaTime) {
-        Game.mapEditor.Update(deltaTime);
-        Game.player.Update(deltaTime);
-        if (Game.IsKeyDown(KeyEvent.VK_S)) {
-            testPosition = testPosition.add(new Vector2(0, 100.0).scale(deltaTime));
+        if (this.editor != null) {
+            Game.HEIGHT -= this.editor.height;
         }
 
-        System.out.println(Game.IsKeyDown(KeyEvent.VK_S));
-
+        Game.player.Update(deltaTime);
+        editor.Update(deltaTime);
         // System.out.println("Game tick! At " + 1.0/deltaTime + "TPS");
     }
 
     private void DrawFPS(Graphics2D g) {
-        g.setFont(Game.font32);
+        g.setFont(Game.font16);
         
         String text = Long.toString(Math.round(Game.FPS)) + " FPS";
         FontMetrics m = g.getFontMetrics();
@@ -153,24 +177,21 @@ public class Game extends JPanel implements Runnable, KeyListener {
 
         g.setColor(Color.GREEN);
         g.drawString(text, Game.WIDTH - textWidth - 10, 32 + 10);
+
+        try {
+            this.editor.Draw(g);
+        } catch (NoninvertibleTransformException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+        }
     }
 
     public void Draw(Graphics2D g) {
-        g.setColor(Color.WHITE);
-        g.fill3DRect(0, 0, 100, 100, true);
+
         //draw player obj
+        testMap.Draw(g);
+        
         player.Draw(g);
-        GG.fillOval(Math.sin(Game.now() * 2.0) * 100.0 + 200.0, 150.0, 50.0, 50.0);
-
-        g.setFont(Game.font32);
-        g.drawString("Press escape to exit 1234567890", 300, 400);
-
-        if (Game.mapEditor.isDrawn) {
-            Game.mapEditor.Draw(g);
-        }
-
-        g.setColor(Color.RED);
-        GG.fillRect(testPosition.x, testPosition.y, 100, 100);
 
         this.DrawFPS(g);
     }
@@ -230,17 +251,22 @@ public class Game extends JPanel implements Runnable, KeyListener {
             if (deltaTime >= 1.0/TARGET_FPS) { // If we're ready to render a frame render it
                 FPS = 1.0 / deltaTime;
 
-                Game.WIDTH = this.getWidth();
-                Game.HEIGHT = this.getHeight();
+                Game.WINDOW_WIDTH = this.getWidth();
+                Game.WINDOW_HEIGHT = this.getHeight();
+
+                Game.WIDTH = Game.WINDOW_WIDTH;
+                Game.HEIGHT = Game.WINDOW_HEIGHT;        
 
                 Update(deltaTime);
                 repaint(); // Tell the panel to call paint
                 lastTick = Game.now(); //Update( Update last tick
 
+                Game.deltaScroll = Game.scrollThisFrame - Game.scrollLastFrame;
+                Game.scrollLastFrame = Game.scrollThisFrame;
+
                 // Update keysdown array
                 for (int i = 0; i < Game.keysDown.length; i++) {
                     Game.keysDownLastFrame[i] = Game.keysDown[i];
-                    Game.keysDown[i] = false;
                 }
             } else {
                 try {
@@ -336,7 +362,6 @@ public class Game extends JPanel implements Runnable, KeyListener {
         if (keyCode > MAX_KEYS) {
             System.err.println("[WARN]: Encountered a key in key up larger  than " + MAX_KEYS + ": " + keyCode);
         } else {
-            System.out.println("Key up!");
             Game.keysDown[keyCode] = false; // But false
         }
     }
