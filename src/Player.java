@@ -61,14 +61,19 @@ public class Player extends GameObject {
             if (currentTime - afterimage.timestamp < AFTERIMAGE_LIFESPAN) {
                 float alpha = 1.0f - (float) (currentTime - afterimage.timestamp) / AFTERIMAGE_LIFESPAN; // Fade effect
                 AffineTransform transform = new AffineTransform();
-                if (afterimage.reflect) {
-                    transform.translate(afterimage.x + frameWidth, afterimage.y);
-                    transform.scale(-2.5, 2.5);
-                    transform.translate(-frameWidth, 0);
-                } else {
-                    transform.translate(afterimage.x, afterimage.y);
-                    transform.scale(2.5, 2.5);
-                }
+                transform.translate(afterimage.x, afterimage.y); // Regular position
+                transform.scale(2.5, 2.5); // Scale up
+                transform.scale(afterimage.reflect ? -1.0 : 1.0, 1.0);
+                transform.translate(-frameWidth/2.0, -frameHeight/2.0);
+                // if (afterimage.reflect) {
+
+                //     transform.translate(afterimage.x + frameWidth, afterimage.y);
+                //     transform.scale(-2.5, 2.5);
+                //     transform.translate(-frameWidth, 0);
+                // } else {
+                //     transform.translate(afterimage.x, afterimage.y);
+                //     transform.scale(2.5, 2.5);
+                // }
                 g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
                 g.drawImage(afterimage.image, transform, null);
             }
@@ -83,14 +88,11 @@ public class Player extends GameObject {
 
         // Create a transform for reflection if needed
         AffineTransform transform = new AffineTransform();
-        if (reflect) {
-            transform.translate(x + frameWidth, y); // Translate to the right edge
-            transform.scale(-2.5, 2.5); // Flip horizontally and scale
-            transform.translate(-frameWidth, 0); // Translate back to align correctly
-        } else {
-            transform.translate(x, y); // Regular position
-            transform.scale(2.5, 2.5); // Scale up
-        }
+
+        transform.translate(x, y); // Regular position
+        transform.scale(2.5, 2.5); // Scale up
+        transform.scale(this.reflect ? -1.0 : 1.0, 1.0);
+        transform.translate(-frameWidth/2.0, -frameHeight/2.0);
 
         // Safeguard against null or invalid frames
         if (currentFrames == null) {
@@ -106,6 +108,7 @@ public class Player extends GameObject {
         }
 
         // Draw the current frame with the transform
+        
         g.drawImage(currentFrames[currentFrame], transform, null);
 
         // Update to the next frame if enough time has passed
@@ -135,20 +138,19 @@ public class Player extends GameObject {
 
         if (Game.IsKeyPressed(KeyEvent.VK_SPACE) && (dx != 0 || dy != 0)) {
             // Add afterimages
+            Vector2 offset = new Vector2(dx, dy).normalize(); // Make sure dashing is even on diagonals
             for (int i = 0; i < MAX_AFTERIMAGES; i++) {
-                int offsetX = (int) (DASH_DISTANCE * dx * (0.2 * i));
-                int offsetY = (int) (DASH_DISTANCE * dy * (0.2 * i));
                 afterimages.add(new AfterimageData(
-                    x + offsetX, 
-                    y + offsetY, 
+                    (int)(x + offset.x * DASH_DISTANCE * (0.2 * i)), 
+                    (int)(y + offset.y * DASH_DISTANCE * (0.2 * i)), 
                     currentFrames[currentFrame], 
                     reflect, 
                     System.currentTimeMillis()
                 ));
             }
 
-            x += DASH_DISTANCE * dx;
-            y += DASH_DISTANCE * dy;
+            x += DASH_DISTANCE * offset.x;
+            y += DASH_DISTANCE * offset.y;
         }
 
         // Normalize the movement vector
