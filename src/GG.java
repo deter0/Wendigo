@@ -32,5 +32,17 @@ public class GG {
         g.drawRect(x.intValue(), y.intValue(), w.intValue(), h.intValue());
     }
 
+    public static <N extends Number> void drawLine(N x1, N y1, N x2, N y2) {
+        g.drawLine(x1.intValue(), y1.intValue(), x2.intValue(), y2.intValue());
+    }
+
+    public static void fillRect(Vector2 position, Vector2 size) {
+        GG.fillRect(position.x, position.y, size.x, size.y);
+    }
+
+    public static void drawRect(Vector2 position, Vector2 size) {
+        GG.drawRect(position.x, position.y, size.x, size.y);
+    }
+    
     // TODO: Implement more functions
 }

@@ -7,7 +7,7 @@ import javax.imageio.ImageIO;
 import java.util.ArrayList;
 
 public class Player extends GameObject {
-    private int x = 0, y = 0;
+    public int x = 0, y = 0;
     private BufferedImage idleSpriteSheet, runSpriteSheet;
     private BufferedImage[] idleFrames, runFrames;
     private BufferedImage[] currentFrames; // Active frame set

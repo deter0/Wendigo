@@ -76,4 +76,12 @@ class Vector2 {
     public Vector2 rotate(double angle) {
         return this.rotate(new Vector2(), angle);
     }
+    public static boolean AABBContainsPoint(Vector2 pos, Vector2 size, Vector2 point) {
+        if (point.x >= pos.x && point.x <= pos.x+size.x) {
+            if (point.y >= pos.y && point.y <= pos.y+size.y) {
+                return true;
+            }
+        }
+        return false;
+    }
 }

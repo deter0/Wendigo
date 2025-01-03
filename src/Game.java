@@ -177,22 +177,20 @@ public class Game extends JPanel implements Runnable, KeyListener {
 
         g.setColor(Color.GREEN);
         g.drawString(text, Game.WIDTH - textWidth - 10, 32 + 10);
+    }
 
+    public void Draw(Graphics2D g) {
+        testMap.Draw(g);
+
+        //draw player obj
+        player.Draw(g);
+        
         try {
             this.editor.Draw(g);
         } catch (NoninvertibleTransformException e) {
             // TODO Auto-generated catch block
             e.printStackTrace();
         }
-    }
-
-    public void Draw(Graphics2D g) {
-
-        //draw player obj
-        testMap.Draw(g);
-        
-        player.Draw(g);
-
         this.DrawFPS(g);
     }
 
@@ -213,7 +211,7 @@ public class Game extends JPanel implements Runnable, KeyListener {
                            RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 
         g.setColor(Color.BLACK);
-        g.fillRect(0, 0, WIDTH, HEIGHT);
+        g.fillRect(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
 
         Game.currentCursor = Cursor.getPredefinedCursor(Cursor.DEFAULT_CURSOR);
         this.Draw(g);
