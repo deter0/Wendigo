@@ -95,6 +95,14 @@ class Tile {
         this.textureIndex = textureIndex;
     }
 
+    public boolean IsCompoundTile() {
+        return this.w > 1 || this.h > 1;
+    }
+
+    public int GetSheetIndex() {
+        return this.y * this.textureSheet.numTilesX + this.x;
+    }
+
     public boolean IsBlank() {
         int tileSize = this.textureSheet.tileSize;
         int sx = this.textureIndex % this.textureSheet.numTilesX;
@@ -521,12 +529,10 @@ class Panel {
                                  
         if (hovering) {
             if (Game.IsKeyPressed(KeyEvent.VK_LEFT)) {
-                System.out.println("La");
                 value -= 1.0;
             } else if (Game.IsKeyPressed(KeyEvent.VK_RIGHT)) {
                 value += 1.0;
             }
-        //     System.out.println("Hovering");
         }
 
         g.setFont(TileMapEditor.ED_FONT);
@@ -946,6 +952,28 @@ class TileMapEditor {
             this.sslSelection.add(topLeftTile);
         }
     }
+
+    private void SSLUnGroupSelection() {
+        if (this.sslSelection.size() != 1) return;
+        
+        Tile selection = this.sslSelection.get(0);
+        this.sslSheet.tiles.set(selection.GetSheetIndex(), null);
+
+        this.sslSelection.clear();
+
+        for (int x = selection.x; x < selection.x + selection.w; x++) {
+            for (int y = selection.y; y < selection.y + selection.h; y++) {
+                int index = y * this.sslSheet.numTilesX + x;
+                Tile newTile = new Tile(x, y, this.sslSheet, index);
+                if (this.sslSheet.tilesPurged && newTile.IsBlank()) {
+                    continue;
+                }
+
+                this.sslSheet.tiles.set(index, newTile);
+                this.sslSelection.add(newTile);
+            }
+        }
+    }
     
     private void SpriteSheetLoader(Graphics2D g) {
         this.layers.disabled = true;
@@ -1026,6 +1054,12 @@ class TileMapEditor {
                     if (ssEditor.EntryButton("Group")) {
                         this.SSLGroupSelection();
                     }
+
+                    ssEditor.nextButtonDisabled = this.sslSelection.size() == 1 && !this.sslSelection.get(0).IsCompoundTile();
+                    if (ssEditor.EntryButton("Ungroup")) {
+                        this.SSLUnGroupSelection();
+                    }
+
                     ssEditor.EntryEnd();
                 ssEditor.ListEnd();
 
