@@ -281,6 +281,8 @@ class Panel {
 
 
     private static HashMap<String, Double> scrolls = new HashMap<>();
+    private static HashMap<String, Double> scrollsTarget = new HashMap<>();
+
     private ArrayList<Shape> clipsStack = new ArrayList<>();
 
     private boolean isResizing = false;
@@ -328,13 +330,23 @@ class Panel {
             this.windowPosition = position.scale(1.0);
         }
 
+        for(HashMap.Entry<String, Double> entry : Panel.scrollsTarget.entrySet()) {
+            String key = entry.getKey();
+            Double targetValue = entry.getValue();
+            Double currentValue = Panel.scrolls.get(key);
+
+            if (targetValue == null) continue;
+            if (currentValue == null) currentValue = 0.0;
+
+            Panel.scrolls.put(key, Vector2.lerpFRI(currentValue, targetValue, 0.995, Game.deltaTime));
+        }
+
         g.setColor(PANEL_BG);
         GG.fillRect(this.position, this.size); // Fill panel background
         g.setColor(this.disabled ? BUTTON_DOWN_BG : new Color(0x777777));
         GG.drawRect(this.position.sub(new Vector2(1, 1)), this.size.add(new Vector2(2, 2))); // Border
 
         double grabbingRadius = 10.0;
-
 
         boolean grabbingTop = Vector2.AABBContainsPoint(windowPosition.add(new Vector2(0, -grabbingRadius)),
                                                          new Vector2(windowSize.x, grabbingRadius),
@@ -651,7 +663,6 @@ class Panel {
     private Vector2 currentListPrevSize;
     protected Vector2 currentListTopLeft;
     private String currentListRandomName;
-    private AffineTransform currentListPrevTransform;
 
     public double GetListScroll() {
         Double value = Panel.scrolls.get(this.currentListRandomName);
@@ -700,7 +711,7 @@ class Panel {
         if (scrollPixels == null) {
             scrollPixels = 0.0;
         }
-        this.currentListPrevTransform = g.getTransform();
+
         // g.translate(0, -scrollPixels);
         this.position.x = position.x;
         this.position.y = position.y;
@@ -712,16 +723,17 @@ class Panel {
     }
     
     public void ListEnd() {
-        g.setTransform(this.currentListPrevTransform);
-
         this.currentListPrevPosition.y += this.size.y + PADDING;
         
-        Double scrollPixels = Panel.scrolls.get(this.currentListRandomName);
-        if (scrollPixels == null) {
+        Double scrollPixels = Panel.scrollsTarget.get(this.currentListRandomName);
+        Double scrollPixelsNow = Panel.scrolls.get(this.currentListRandomName);
+
+        if (scrollPixels == null || scrollPixelsNow == null) {
             scrollPixels = 0.0;
+            scrollPixelsNow = 0.0;
         }
 
-        double contentBottomCoord = (this.position.y-this.currentListTopLeft.y);
+        double contentBottomCoord = ((this.position.y+scrollPixels) -this.currentListTopLeft.y);
 
         if ((contentBottomCoord != 0 && contentBottomCoord > this.size.y)) {
             double scrollBarWidth = 10.0;
@@ -742,12 +754,10 @@ class Panel {
                 deltaScroll = 0;
             }
             if (!this.disabled && Vector2.AABBContainsPoint(this.currentListTopLeft, this.size, Game.mousePos)) {
-                scrollPixels += deltaScroll;
+                scrollPixels += deltaScroll * 4.0;
             }
 
-            Panel.scrolls.put(this.currentListRandomName, scrollPixels);
-
-            double percentScroll = scrollPixels/maxScroll;
+            double percentScroll = scrollPixelsNow/maxScroll;
 
             double scrollBarButtonOffset = percentScroll * (this.size.y-scrollBarButtonSizeY);
             Vector2 scrollBarButtonPosition = scrollBarPos.add(new Vector2(0, scrollBarButtonOffset));
@@ -763,7 +773,7 @@ class Panel {
         } else {
             scrollPixels = 0.0;
         }
-        Panel.scrolls.put(this.currentListRandomName, scrollPixels);
+        Panel.scrollsTarget.put(this.currentListRandomName, scrollPixels);
 
         this.position = this.currentListPrevPosition;
         this.size = this.currentListPrevSize;
