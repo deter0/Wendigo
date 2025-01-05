@@ -47,6 +47,18 @@ class SpriteSheet {
         Init(loadedImage, tileSize);
     }
 
+    public void PurgeBlankTiles() {
+        int removalCount = 0;
+        for (Tile t : this.tiles) {
+            if (t.IsBlank()) {
+                removalCount ++;
+                this.tiles.set(this.tiles.indexOf(t), null);
+            }
+        }
+
+        System.out.println("[LOG]: Purged blank " + removalCount + " tiles in `" + this.name + "` sprite sheet.");
+    }
+
     public void UpdateTilesSize() {
         int imageWidth = this.image.getWidth();
         int imageHeight = this.image.getHeight();
@@ -66,9 +78,47 @@ class Tile {
     public SpriteSheet textureSheet;
     public int textureIndex;
 
+    public int w = 1;
+    public int h = 1;
+
     public Tile(SpriteSheet sheet, int textureIndex) {
         this.textureSheet = sheet;
         this.textureIndex = textureIndex;
+    }
+
+    public boolean IsBlank() {
+        int tileSize = this.textureSheet.tileSize;
+        int sx = this.textureIndex % this.textureSheet.numTilesX;
+        int sy = this.textureIndex / this.textureSheet.numTilesX;
+        BufferedImage image = this.textureSheet.image;
+    
+        if (image == null)
+            return true;
+
+        // Calculate the top-left corner of the tile in the texture sheet
+        int startX = sx * tileSize;
+        int startY = sy * tileSize;
+    
+        // Get the alpha raster of the image
+        WritableRaster alphaRaster = image.getAlphaRaster();
+        if (alphaRaster == null)
+            return false;
+    
+        // Loop through each pixel in the tile
+        for (int y = 0; y < tileSize; y++) {
+            for (int x = 0; x < tileSize; x++) {
+                // Get the alpha value of the pixel (0 = fully transparent, 255 = fully opaque)
+                int alpha = alphaRaster.getSample(startX + x, startY + y, 0);
+    
+                // If any pixel is not fully transparent, the tile is not blank
+                if (alpha > 0) {
+                    return false;
+                }
+            }
+        }
+    
+        // All pixels are fully transparent; the tile is blank
+        return true;
     }
 
     public void Draw(Graphics2D g, double x, double y, double w, double h) {
@@ -78,7 +128,7 @@ class Tile {
 
         g.drawImage(this.textureSheet.image,
                     (int)x, (int)y, (int)(x+w), (int)(y+h),
-                    sx*tileSize, sy*tileSize, (sx*tileSize)+tileSize, (sy*tileSize)+tileSize,
+                    sx*tileSize, sy*tileSize, (sx*tileSize)+(tileSize*this.w), (sy*tileSize)+(tileSize*this.h),
                     GG.COLOR_OPAQUE, null);
     }
 }
@@ -808,22 +858,29 @@ class TileMapEditor {
     private SpriteSheet currentSelectedSheet;
     private JFileChooser fileChooser;
 
-    private boolean sslVisible = false;
-    private String sslImgPath = null;
     private SpriteSheet sslSheet = null;
-    private BufferedImage sslImage = null;
     private String sslError = null;
+    private boolean sslVisible = false;
+    private BufferedImage sslImage = null;
     private boolean sslIsNew = true;
-    private Vector2 sslScroll = new Vector2();
+    private String sslImgPath = null;
+    
     private double sslZoomTarget = 3.0;
     private double sslZoom = 3.0;
+    private Vector2 sslScroll = new Vector2();
+
+    private ArrayList<Tile> sslSelected = new ArrayList<>();
+    private Tile sslSelectedKeyTile;
+    private Vector2 sslSelectionMouseStart = null;
     
     private void sslReset() {
         this.sslVisible = false;
         this.sslImgPath = null;
         this.sslImage = null;
         this.sslError = null;
+        this.sslSelected = new ArrayList<>();
         this.sslSheet = null;
+        this.sslSelectionMouseStart = null;
         this.sslIsNew = true;
         this.sslScroll = new Vector2();
         this.sslZoomTarget = 3.0;
@@ -843,24 +900,7 @@ class TileMapEditor {
             try {
                 BufferedImage loadedImage = ImageIO.read(new File(this.sslImgPath));
                 if (loadedImage != null) {
-                    // Get the screen's default graphics configuration
-                    GraphicsEnvironment env = GraphicsEnvironment.getLocalGraphicsEnvironment();
-                    GraphicsDevice device = env.getDefaultScreenDevice();
-                    GraphicsConfiguration config = device.getDefaultConfiguration();
-
-                    // Create a compatible image with the same width, height, and transparency as the loaded image
-                    BufferedImage sslImage = config.createCompatibleImage(
-                            loadedImage.getWidth(),
-                            loadedImage.getHeight(),
-                            loadedImage.getTransparency()
-                    );
-
-                    // Draw the loaded image onto the compatible image
-                    Graphics imageG = sslImage.getGraphics();
-                    imageG.drawImage(loadedImage, 0, 0, null);
-                    imageG.dispose(); // Always dispose of Graphics objects when done
-
-                    this.sslImage = sslImage;
+                    this.sslImage = loadedImage;
                     this.sslError = null;
                 } else {
                     throw new Exception("Tried to load image but got NULL.");
@@ -913,6 +953,12 @@ class TileMapEditor {
                         this.sslGridVisible = !this.sslGridVisible;
                     }
                     ssEditor.EntryEnd();
+
+                    ssEditor.EntryBegin("Auto Purge: ");
+                    if (ssEditor.EntryButton("Purge Blank Tiles")) {
+                        this.sslSheet.PurgeBlankTiles();
+                    }
+                    ssEditor.EntryEnd();
                 ssEditor.ListEnd();
 
                 ssEditor.EntryBegin("Tile Properties");
@@ -954,27 +1000,6 @@ class TileMapEditor {
             Vector2 imagePos = new Vector2(-this.sslImage.getWidth() / 2.0, -this.sslImage.getHeight() / 2.0);
             boolean hovering = Vector2.AABBContainsPoint(ssEditor.position, ssEditor.size, Game.mousePos);
 
-            if (hovering) {
-                // Adjust zoom based on scroll input
-                this.sslZoomTarget -= Game.deltaScroll * 0.06;
-
-                // Handle panning (mouse drag with middle button)
-                if (Game.IsMousePressed(MouseEvent.BUTTON2) && this.sslMovMouseStart == null) {
-                    this.sslMovMouseStart = Game.mousePos.scale(1.0);
-                    this.sslMovInitialScroll = this.sslScroll.scale(1.0);
-                }
-
-                if (this.sslMovMouseStart != null) {
-                    Vector2 delta = this.sslMovMouseStart.sub(Game.mousePos);
-                    this.sslScroll = this.sslMovInitialScroll.sub(delta);
-                    Game.currentCursor = Cursor.getPredefinedCursor(Cursor.MOVE_CURSOR);
-                }
-
-                if (Game.IsMouseReleased(MouseEvent.BUTTON2)) {
-                    this.sslMovMouseStart = null;
-                }
-            }
-
             // Update smooth zoom
             this.sslZoom = Vector2.lerpFRI(this.sslZoom, this.sslZoomTarget, 0.99, Game.deltaTime);
 
@@ -996,12 +1021,75 @@ class TileMapEditor {
                 e.printStackTrace(); // Handle any exceptions from inverse transform
             }
 
+            if (hovering) {
+                // Adjust zoom based on scroll input
+                this.sslZoomTarget -= Game.deltaScroll * 0.06;
+
+                // Handle panning (mouse drag with middle button)
+                if (Game.IsMousePressed(MouseEvent.BUTTON2) && this.sslMovMouseStart == null) {
+                    this.sslMovMouseStart = Game.mousePos.scale(1.0);
+                    this.sslMovInitialScroll = this.sslScroll.scale(1.0);
+                }
+
+                if (this.sslMovMouseStart != null) {
+                    Vector2 delta = this.sslMovMouseStart.sub(Game.mousePos);
+                    this.sslScroll = this.sslMovInitialScroll.sub(delta);
+                    Game.currentCursor = Cursor.getPredefinedCursor(Cursor.MOVE_CURSOR);
+                }
+
+                if (Game.IsMouseReleased(MouseEvent.BUTTON2)) {
+                    this.sslMovMouseStart = null;
+                }
+
+                if (Game.IsMousePressed(MouseEvent.BUTTON1)) {
+                    if (!Game.IsKeyDown(KeyEvent.VK_CONTROL)) {
+                        this.sslSelected.clear();
+                    }
+                    this.sslSelectionMouseStart = new Vector2(relativeMousePos.x, relativeMousePos.y);
+                }
+                if (Game.IsMouseReleased(MouseEvent.BUTTON1)) {
+                    this.sslSelectionMouseStart = null;
+                }
+            }
+
+            Rectangle selectionRectangle = new Rectangle();
+            if (this.sslSelectionMouseStart != null) {
+                // Calculate the initial rectangle with potentially negative width/height
+                int startX = (int) this.sslSelectionMouseStart.x;
+                int startY = (int) this.sslSelectionMouseStart.y;
+                int endX = (int) relativeMousePos.x;
+                int endY = (int) relativeMousePos.y;
+
+                // Normalize the rectangle to ensure positive width and height
+                int normalizedX = Math.min(startX, endX);
+                int normalizedY = Math.min(startY, endY);
+                int normalizedWidth = Math.abs(endX - startX) + 1;
+                int normalizedHeight = Math.abs(endY - startY) + 1; // Add one to always select
+
+                // Set the normalized rectangle
+                selectionRectangle.setBounds(normalizedX, normalizedY, normalizedWidth, normalizedHeight);
+
+                this.sslSelected.clear();
+            }
+
             for (int y = 0; y < this.sslSheet.numTilesY; y++) {
                 for (int x = 0; x < this.sslSheet.numTilesX; x++) {
                     Tile t = this.sslSheet.tiles.get(y * this.sslSheet.numTilesX + x);
                     if (t != null) {
-                        t.Draw(g, imagePos.x + x*this.sslSheet.tileSize, imagePos.y + y * this.sslSheet.tileSize,
-                                this.sslSheet.tileSize, this.sslSheet.tileSize);
+                        Rectangle tileRect = new Rectangle((int)(imagePos.x + x*this.sslSheet.tileSize),
+                                                           (int)(imagePos.y + y*this.sslSheet.tileSize), 
+                                                           this.sslSheet.tileSize, this.sslSheet.tileSize);
+
+                        if (selectionRectangle.intersects(tileRect) || tileRect.intersects(selectionRectangle)) {
+                            this.sslSelected.add(t);
+                            
+                            if (tileRect.contains(relativeMousePos)) {
+                                this.sslSelectedKeyTile = t;
+                            }
+                        }
+
+
+                        t.Draw(g, tileRect.x, tileRect.y, tileRect.width, tileRect.height);
                     }
                 }
             }
@@ -1010,11 +1098,17 @@ class TileMapEditor {
 
             for (int y = 0; y < this.sslSheet.numTilesY; y++) {
                 for (int x = 0; x < this.sslSheet.numTilesX; x++) {
+                    Tile t = this.sslSheet.tiles.get(y * this.sslSheet.numTilesX + x);
+                    if (t == null)
+                        continue;
+
                     Color tileOutlineColor = new Color(175, 50, 200, 100);
                     Rectangle tileRectangle = new Rectangle();
 
                     boolean drawOutline = this.sslGridVisible;
                     boolean hoveringTile = false;
+                    boolean selected = (this.sslSelected.indexOf(t) != -1);
+                    boolean lastSelected = this.sslSelectedKeyTile == t;
 
                     tileRectangle.x = (int)(imagePos.x + x * this.sslSheet.tileSize);
                     tileRectangle.y = (int)(imagePos.y + y * this.sslSheet.tileSize);
@@ -1027,6 +1121,15 @@ class TileMapEditor {
                         drawOutline = true;
                     }
 
+                    if (selected) {
+                        tileOutlineColor = Panel.BUTTON_HILI_BG;
+                        drawOutline = true;
+
+                        if (lastSelected) {
+                            tileOutlineColor = Color.RED;//new Color(91, 207, 117);
+                        }
+                    }
+
                     g.setColor(tileOutlineColor);
 
                     if (drawOutline) {
@@ -1037,6 +1140,9 @@ class TileMapEditor {
                     }
                 }
             }
+
+            g.setColor(new Color(175, 50, 200, 100));
+            g.fillRect(selectionRectangle.x, selectionRectangle.y, selectionRectangle.width, selectionRectangle.height);
 
             g.setTransform(prevTrans);
 
