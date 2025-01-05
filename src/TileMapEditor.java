@@ -16,6 +16,8 @@ class SpriteSheet {
     protected int numTilesX;
     protected int numTilesY;
 
+    protected boolean tilesPurged = false;
+
     protected BufferedImage image;
 
     ArrayList<Tile> tiles;
@@ -50,13 +52,14 @@ class SpriteSheet {
     public void PurgeBlankTiles() {
         int removalCount = 0;
         for (Tile t : this.tiles) {
-            if (t.IsBlank()) {
+            if (t != null && t.IsBlank()) {
                 removalCount ++;
                 this.tiles.set(this.tiles.indexOf(t), null);
             }
         }
 
         System.out.println("[LOG]: Purged blank " + removalCount + " tiles in `" + this.name + "` sprite sheet.");
+        this.tilesPurged = true;
     }
 
     public void UpdateTilesSize() {
@@ -68,8 +71,10 @@ class SpriteSheet {
 
         System.err.println("[WARN]: Reset blueprint tiles.");
         this.tiles = new ArrayList<>();
-        for (int i = 0; i < this.numTilesX*this.numTilesY; i++) {
-            this.tiles.add(new Tile(this, i));
+        for (int y = 0; y < this.numTilesY; y++) {
+            for (int x = 0; x < this.numTilesX; x++) {
+                this.tiles.add(new Tile(x, y, this, y * this.numTilesX + x));
+            }
         }
     }
 }
@@ -78,10 +83,14 @@ class Tile {
     public SpriteSheet textureSheet;
     public int textureIndex;
 
+    protected int x;
+    protected int y;
     public int w = 1;
     public int h = 1;
 
-    public Tile(SpriteSheet sheet, int textureIndex) {
+    public Tile(int x, int y, SpriteSheet sheet, int textureIndex) {
+        this.x = x;
+        this.y = y;
         this.textureSheet = sheet;
         this.textureIndex = textureIndex;
     }
@@ -127,7 +136,7 @@ class Tile {
         int sy = this.textureIndex / this.textureSheet.numTilesX;
 
         g.drawImage(this.textureSheet.image,
-                    (int)x, (int)y, (int)(x+w), (int)(y+h),
+                    (int)x, (int)y, (int)(x+(w * this.w)), (int)(y+(h * this.h)),
                     sx*tileSize, sy*tileSize, (sx*tileSize)+(tileSize*this.w), (sy*tileSize)+(tileSize*this.h),
                     GG.COLOR_OPAQUE, null);
     }
@@ -153,7 +162,7 @@ class TileMapLayer {
         Tile t = this.tiles.get(tileIndex); // The tile we are modifying;
 
         if (t == null) {
-            t = new Tile(sheet, textureIndex);
+            t = new Tile(x, y, sheet, textureIndex);
             this.tiles.set(tileIndex, t);
         }
 
@@ -869,7 +878,7 @@ class TileMapEditor {
     private double sslZoom = 3.0;
     private Vector2 sslScroll = new Vector2();
 
-    private ArrayList<Tile> sslSelected = new ArrayList<>();
+    private ArrayList<Tile> sslSelection = new ArrayList<>();
     private Tile sslSelectedKeyTile;
     private Vector2 sslSelectionMouseStart = null;
     
@@ -878,7 +887,7 @@ class TileMapEditor {
         this.sslImgPath = null;
         this.sslImage = null;
         this.sslError = null;
-        this.sslSelected = new ArrayList<>();
+        this.sslSelection = new ArrayList<>();
         this.sslSheet = null;
         this.sslSelectionMouseStart = null;
         this.sslIsNew = true;
@@ -887,6 +896,57 @@ class TileMapEditor {
         this.sslZoom = 3.0;
     }
 
+    private void SSLGroupSelection() {
+        if (this.sslSelection.size() < 2) return;
+
+        int topLeftX = Integer.MAX_VALUE, topLeftY = Integer.MAX_VALUE;
+        int bottomRightX = Integer.MIN_VALUE, bottomRightY = Integer.MIN_VALUE;
+        
+        Tile topLeftTile = null;
+        Tile bottomRightTile = null;
+
+        for (Tile t : this.sslSelection) {
+            if (t.x < topLeftX) {
+                topLeftTile = t;
+                topLeftX = t.x;
+            }
+            if (t.y < topLeftY) {
+                topLeftY = t.y;
+            }
+            if (t.x > bottomRightX) {
+                bottomRightTile = t;
+                bottomRightX = t.x;
+            }
+            if (t.y > bottomRightY) {
+                bottomRightY = t.y;
+            }
+        }
+
+        if (topLeftTile != null && bottomRightTile != null) {
+            // Clear tiles within the rectangle defined by topLeft and bottomRight
+            for (int x = topLeftX; x <= bottomRightX; x++) {
+                for (int y = topLeftY; y <= bottomRightY; y++) {
+                    this.sslSheet.tiles.set(y * this.sslSheet.numTilesX + x, null);
+                }
+            }
+
+            topLeftTile.x = topLeftX;
+            topLeftTile.y = topLeftY;
+
+            int tlIndex = topLeftTile.y * this.sslSheet.numTilesX + topLeftTile.x;
+            topLeftTile.w = bottomRightX - topLeftX + 1;
+            topLeftTile.h = bottomRightY - topLeftY + 1;
+            topLeftTile.textureIndex = tlIndex;
+
+            System.out.println("[LOG]: Created group tile of size " + topLeftTile.w + "x" + topLeftTile.h + ".");
+
+            this.sslSheet.tiles.set(tlIndex, topLeftTile);
+
+            this.sslSelection.clear();
+            this.sslSelection.add(topLeftTile);
+        }
+    }
+    
     private void SpriteSheetLoader(Graphics2D g) {
         this.layers.disabled = true;
         this.sheetsPanel.disabled = true;
@@ -955,8 +1015,16 @@ class TileMapEditor {
                     ssEditor.EntryEnd();
 
                     ssEditor.EntryBegin("Auto Purge: ");
+                    ssEditor.nextButtonDisabled = this.sslSheet.tilesPurged;
                     if (ssEditor.EntryButton("Purge Blank Tiles")) {
                         this.sslSheet.PurgeBlankTiles();
+                    }
+                    ssEditor.EntryEnd();
+
+                    ssEditor.EntryBegin("Group Selection: ");
+                    ssEditor.nextButtonDisabled = this.sslSelection.size() < 2;
+                    if (ssEditor.EntryButton("Group")) {
+                        this.SSLGroupSelection();
                     }
                     ssEditor.EntryEnd();
                 ssEditor.ListEnd();
@@ -1043,7 +1111,7 @@ class TileMapEditor {
 
                 if (Game.IsMousePressed(MouseEvent.BUTTON1)) {
                     if (!Game.IsKeyDown(KeyEvent.VK_CONTROL)) {
-                        this.sslSelected.clear();
+                        this.sslSelection.clear();
                     }
                     this.sslSelectionMouseStart = new Vector2(relativeMousePos.x, relativeMousePos.y);
                 }
@@ -1069,7 +1137,7 @@ class TileMapEditor {
                 // Set the normalized rectangle
                 selectionRectangle.setBounds(normalizedX, normalizedY, normalizedWidth, normalizedHeight);
 
-                this.sslSelected.clear();
+                this.sslSelection.clear();
             }
 
             for (int y = 0; y < this.sslSheet.numTilesY; y++) {
@@ -1081,20 +1149,17 @@ class TileMapEditor {
                                                            this.sslSheet.tileSize, this.sslSheet.tileSize);
 
                         if (selectionRectangle.intersects(tileRect) || tileRect.intersects(selectionRectangle)) {
-                            this.sslSelected.add(t);
-                            
+                            this.sslSelection.add(t);
+
                             if (tileRect.contains(relativeMousePos)) {
                                 this.sslSelectedKeyTile = t;
                             }
                         }
 
-
                         t.Draw(g, tileRect.x, tileRect.y, tileRect.width, tileRect.height);
                     }
                 }
             }
-
-            // g.drawImage(this.sslImage, (int)imagePos.x, (int)imagePos.y, null);
 
             for (int y = 0; y < this.sslSheet.numTilesY; y++) {
                 for (int x = 0; x < this.sslSheet.numTilesX; x++) {
@@ -1107,13 +1172,13 @@ class TileMapEditor {
 
                     boolean drawOutline = this.sslGridVisible;
                     boolean hoveringTile = false;
-                    boolean selected = (this.sslSelected.indexOf(t) != -1);
+                    boolean selected = (this.sslSelection.indexOf(t) != -1);
                     boolean lastSelected = this.sslSelectedKeyTile == t;
 
                     tileRectangle.x = (int)(imagePos.x + x * this.sslSheet.tileSize);
                     tileRectangle.y = (int)(imagePos.y + y * this.sslSheet.tileSize);
-                    tileRectangle.width = this.sslSheet.tileSize;
-                    tileRectangle.height = this.sslSheet.tileSize;
+                    tileRectangle.width = this.sslSheet.tileSize * t.w;
+                    tileRectangle.height = this.sslSheet.tileSize * t.h;
 
                     if (tileRectangle.contains(relativeMousePos)) {
                         tileOutlineColor = new Color(175, 50, 200);
@@ -1126,17 +1191,16 @@ class TileMapEditor {
                         drawOutline = true;
 
                         if (lastSelected) {
-                            tileOutlineColor = Color.RED;//new Color(91, 207, 117);
+                            tileOutlineColor = new Color(91, 207, 117);
                         }
                     }
 
                     g.setColor(tileOutlineColor);
 
                     if (drawOutline) {
-                        g.setStroke(new BasicStroke(hoveringTile ? 0.5f : 0.25f));
+                        g.setStroke(new BasicStroke((hoveringTile || lastSelected) ? 0.6f : 0.25f));
 
-                        GG.drawRect(imagePos.x + x*this.sslSheet.tileSize, imagePos.y + y * this.sslSheet.tileSize,
-                                    this.sslSheet.tileSize, this.sslSheet.tileSize);
+                        GG.drawRect(tileRectangle.x, tileRectangle.y, tileRectangle.width, tileRectangle.height);
                     }
                 }
             }
