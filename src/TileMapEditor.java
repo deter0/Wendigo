@@ -76,6 +76,7 @@ class SpriteSheet {
                 this.tiles.add(new Tile(x, y, this, y * this.numTilesX + x));
             }
         }
+        this.tilesPurged = false;
     }
 }
 
@@ -622,10 +623,11 @@ class Panel {
 
     public void FlowLayoutBegin() {
         this.flowLayoutCursor = new Vector2(PADDING);
+        this.flowLayoutCurrentHeight = 0;
     }
 
     public void FlowLayoutEnd() {
-        this.position = this.flowLayoutCursor.add(new Vector2(0, this.flowLayoutCurrentHeight + 2*PADDING));
+        this.position = new Vector2(this.position.x, this.position.y + this.flowLayoutCursor.y + this.flowLayoutCurrentHeight + 2*PADDING);
     }
 
     public Vector2 FlowLayoutAdd(Vector2 size) {
@@ -729,15 +731,21 @@ class Panel {
             double percentContentVisible = this.size.y / contentBottomCoord;
             double scrollBarButtonSizeY = this.size.y * percentContentVisible;
 
-            if (!this.disabled && Vector2.AABBContainsPoint(this.currentListTopLeft, this.size, Game.mousePos)) {
-                scrollPixels += Game.deltaScroll;
-            }
-            double minScroll = 0.0, maxScroll = contentBottomCoord - this.size.y;
+            double minScroll = 0.0, maxScroll = contentBottomCoord - this.size.y + 2*PADDING;
+            double deltaScroll = Game.deltaScroll;
+
             if (scrollPixels < minScroll) {
                 scrollPixels = minScroll;
+                deltaScroll = 0;
             } else if (scrollPixels > maxScroll) {
                 scrollPixels = maxScroll;
+                deltaScroll = 0;
             }
+            if (!this.disabled && Vector2.AABBContainsPoint(this.currentListTopLeft, this.size, Game.mousePos)) {
+                scrollPixels += deltaScroll;
+            }
+
+            Panel.scrolls.put(this.currentListRandomName, scrollPixels);
 
             double percentScroll = scrollPixels/maxScroll;
 
