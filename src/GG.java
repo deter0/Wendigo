@@ -36,12 +36,28 @@ public class GG {
         g.drawLine(x1.intValue(), y1.intValue(), x2.intValue(), y2.intValue());
     }
 
+    public static <N extends Number> void fillRoundRect(N x1, N y1, N x2, N y2, N arcW, N arcH) {
+        g.fillRoundRect(x1.intValue(), y1.intValue(), x2.intValue(), y2.intValue(), arcW.intValue(), arcH.intValue());
+    }
+
     public static void fillRect(Vector2 position, Vector2 size) {
         GG.fillRect(position.x, position.y, size.x, size.y);
     }
 
     public static void drawRect(Vector2 position, Vector2 size) {
         GG.drawRect(position.x, position.y, size.x, size.y);
+    }
+
+    public static void drawOval(Vector2 position, Vector2 size) {
+        GG.drawOval(position.x, position.y, size.x, size.y);
+    }
+
+    public static void fillOval(Vector2 position, Vector2 size) {
+        GG.fillOval(position.x, position.y, size.x, size.y);
+    }
+
+    public static void fillRoundRect(Vector2 position, Vector2 size, Vector2 arcSize) {
+        GG.fillRoundRect(position.x, position.y, size.x, size.y, arcSize.x, arcSize.y);
     }
     
     // TODO: Implement more functions

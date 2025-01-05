@@ -15,7 +15,6 @@ import javax.swing.*;
 import java.awt.event.*;
 import java.awt.geom.NoninvertibleTransformException;
 import java.awt.*;
-import java.awt.Graphics2D;
 import java.io.*;
 
 public class Game extends JPanel implements Runnable, KeyListener {
@@ -52,6 +51,7 @@ public class Game extends JPanel implements Runnable, KeyListener {
     
     // Last reported FPS
     public static double FPS;
+    public static double deltaTime;
 
     // All fonts
     public static Font font16;
@@ -159,10 +159,6 @@ public class Game extends JPanel implements Runnable, KeyListener {
     }
 
     public void Update(double deltaTime) {
-        if (this.editor != null) {
-            Game.HEIGHT -= this.editor.height;
-        }
-
         Game.player.Update(deltaTime);
         editor.Update(deltaTime);
         // System.out.println("Game tick! At " + 1.0/deltaTime + "TPS");
@@ -194,8 +190,30 @@ public class Game extends JPanel implements Runnable, KeyListener {
         this.DrawFPS(g);
     }
 
+    public static void ResetMouse() {
+        Game.deltaScroll = 0;
+        for (int i = 0; i < Game.mouseButtonsDown.length; i++) {
+            Game.mouseButtonsDown[i] = false;
+            Game.mouseButtonsDownLastFrame[i] = false;
+        }
+    }
+
+    private double lastDraw = Game.now();
     @Override
     public void paint(Graphics gAbs) { // Override JPanel paint method
+        double deltaDraw = Game.now() - lastDraw;
+        Game.FPS = 1.0/deltaDraw;
+        lastDraw = Game.now();
+
+        Game.deltaTime = deltaDraw;
+
+        /* Required Update logic */
+        Game.deltaScroll = Game.scrollThisFrame - Game.scrollLastFrame;
+        Game.scrollLastFrame = Game.scrollThisFrame;
+
+        // Update the game
+        Update(deltaDraw);
+
         super.paint(gAbs);
         Graphics2D g = (Graphics2D)gAbs;
 
@@ -219,6 +237,11 @@ public class Game extends JPanel implements Runnable, KeyListener {
         // Update mouse button down arrays
         for (int i = 0; i < Game.mouseButtonsDown.length; i++) {
             Game.mouseButtonsDownLastFrame[i] = Game.mouseButtonsDown[i];
+        }
+
+        // Update keysdown array
+        for (int i = 0; i < Game.keysDown.length; i++) {
+            Game.keysDownLastFrame[i] = Game.keysDown[i];
         }
     }
 
@@ -245,30 +268,20 @@ public class Game extends JPanel implements Runnable, KeyListener {
             Point mp = this.getMousePosition();
             if (mp != null)
                 Game.mousePos = new Vector2(mp.x, mp.y);
-
-            if (deltaTime >= 1.0/TARGET_FPS) { // If we're ready to render a frame render it
-                FPS = 1.0 / deltaTime;
-
+                
+                if (deltaTime >= 1.0/TARGET_FPS) { // If we're ready to render a frame render it
                 Game.WINDOW_WIDTH = this.getWidth();
                 Game.WINDOW_HEIGHT = this.getHeight();
-
+                
                 Game.WIDTH = Game.WINDOW_WIDTH;
                 Game.HEIGHT = Game.WINDOW_HEIGHT;        
-
-                Update(deltaTime);
+                
                 repaint(); // Tell the panel to call paint
-                lastTick = Game.now(); //Update( Update last tick
-
-                Game.deltaScroll = Game.scrollThisFrame - Game.scrollLastFrame;
-                Game.scrollLastFrame = Game.scrollThisFrame;
-
-                // Update keysdown array
-                for (int i = 0; i < Game.keysDown.length; i++) {
-                    Game.keysDownLastFrame[i] = Game.keysDown[i];
-                }
+                
+                lastTick = Game.now(); //Update( Update last tick)
             } else {
                 try {
-                    Thread.sleep((long)((1.0/TARGET_FPS - deltaTime)*900.0), 0); // Sleep 1ms if we're doing nothing so we don't bog CPU
+                    Thread.sleep((long)((1.0/TARGET_FPS - deltaTime)*600.0), 0); // Sleep 1ms if we're doing nothing so we don't bog CPU
                 } catch (InterruptedException err) {
                     System.err.println(err);
                 }

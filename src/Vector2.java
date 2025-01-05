@@ -58,6 +58,11 @@ class Vector2 {
     public static double lerp(double a, double b, double t) {
         return a * (1.0 - t) + b * t;
     }
+    // Framerate independant lerp
+    public static double lerpFRI(double startValue, double endValue, double speed, double deltaTime) {
+        double t = 1 - Math.pow(1 - speed, deltaTime);
+        return startValue + t * (endValue - startValue);
+    }
     public Vector2 lerp(Vector2 other, double t) {
         return new Vector2(lerp(this.x, other.x, t), lerp(this.y, other.y, t));
     }

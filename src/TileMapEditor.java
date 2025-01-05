@@ -1,8 +1,6 @@
 import java.awt.*;
 import java.awt.event.*;
-import java.awt.geom.AffineTransform;
-import java.awt.geom.NoninvertibleTransformException;
-import java.awt.geom.Point2D;
+import java.awt.geom.*;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.io.*;
@@ -12,6 +10,7 @@ import javax.swing.JFileChooser;
 
 // Class for loading and managing SpriteSheet. See: https://en.wikipedia.org/wiki/Texture_atlas
 class SpriteSheet {
+    public String name = "null";
     protected int tileSize;
     
     protected int numTilesX;
@@ -19,28 +18,47 @@ class SpriteSheet {
 
     protected BufferedImage image;
 
-    public SpriteSheet(String filePath, int tileSize) throws IOException {
-        int imageWidth, imageHeight;
+    ArrayList<Tile> tiles;
 
-        this.image = ImageIO.read(new File(filePath));
-        
-        if (this.image == null) {
-            System.err.println("[ERROR]: Error loading texture atlas: " + filePath);
-            return;
-        }
-
+    private void Init(BufferedImage image, int tileSize) {
         this.tileSize = tileSize;
-        imageWidth = this.image.getWidth();
-        imageHeight = this.image.getHeight();
+        this.image = image;
+        int imageWidth = this.image.getWidth();
+        int imageHeight = this.image.getHeight();
 
         this.numTilesX = imageWidth / tileSize;
         this.numTilesY = imageHeight / tileSize;
 
-        if (imageWidth % tileSize != 0 || imageHeight % tileSize != 0) {
-            System.err.println("[WARN]: Atlas tile size not equally divisible by it's width or height. Atlas: `" + filePath + "`");
-        }
+        this.UpdateTilesSize();
 
-        System.err.println("[LOG]: Loaded sprite sheet: `" + filePath + "`");
+        if (imageWidth % tileSize != 0 || imageHeight % tileSize != 0) {
+            System.err.println("[WARN]: Atlas tile size not equally divisible by it's width or height.");
+        }
+    }
+
+    public SpriteSheet(BufferedImage image, int tileSize) {
+        Init(image, tileSize);   
+    }
+
+    public SpriteSheet(String filePath, int tileSize) throws IOException {
+        File f = new File(filePath);
+        BufferedImage loadedImage = ImageIO.read(f);
+        this.name = f.getName();
+        Init(loadedImage, tileSize);
+    }
+
+    public void UpdateTilesSize() {
+        int imageWidth = this.image.getWidth();
+        int imageHeight = this.image.getHeight();
+
+        this.numTilesX = imageWidth / tileSize;
+        this.numTilesY = imageHeight / tileSize;
+
+        System.err.println("[WARN]: Reset blueprint tiles.");
+        this.tiles = new ArrayList<>();
+        for (int i = 0; i < this.numTilesX*this.numTilesY; i++) {
+            this.tiles.add(new Tile(this, i));
+        }
     }
 }
 
@@ -53,13 +71,13 @@ class Tile {
         this.textureIndex = textureIndex;
     }
 
-    public void Draw(Graphics2D g, int x, int y, int w, int h) {
+    public void Draw(Graphics2D g, double x, double y, double w, double h) {
         int tileSize = this.textureSheet.tileSize;
         int sx = this.textureIndex % this.textureSheet.numTilesX;
         int sy = this.textureIndex / this.textureSheet.numTilesX;
 
         g.drawImage(this.textureSheet.image,
-                    x, y, x+w, y+h,
+                    (int)x, (int)y, (int)(x+w), (int)(y+h),
                     sx*tileSize, sy*tileSize, (sx*tileSize)+tileSize, (sy*tileSize)+tileSize,
                     GG.COLOR_OPAQUE, null);
     }
@@ -110,6 +128,17 @@ class TileMap {
         this.layers.add(new TileMapLayer(this));
     }
 
+    public void DeleteSheet(SpriteSheet sheet) {
+        for (TileMapLayer layer : this.layers) {
+            for (Tile t : layer.tiles) {
+                if (t != null && t.textureSheet == sheet) {
+                    layer.tiles.set(layer.tiles.indexOf(t), null);
+                }
+            }
+        }
+        this.ownedSheets.remove(sheet);
+    }
+
     public SpriteSheet LoadSpriteSheet(String filePath, int tileSize) {
         SpriteSheet sheet;
         try {
@@ -158,16 +187,17 @@ class TileMap {
 }
 
 class Panel {
+    static Color PANEL_BG = new Color(0x2e2e2e);
     static Color BUTTON_BG = new Color(0x404040);
     static Color BUTTON_HOV_BG = new Color(0x666666);
     static Color BUTTON_DOWN_BG = new Color(0x252525);
     static Color BUTTON_BORDER = new Color(0x202020);
     static Color BUTTON_HILI_BG = new Color(0x3b8c4d);
-    static double LINE_HEIGHT = 40;
     static double PADDING = 6.0;
+    static double LINE_HEIGHT = TileMapEditor.ED_FONT_SIZE + 2*PADDING;
     
-    private Vector2 initialPosition = null;
-    private Vector2 initialSize = null;
+    public Vector2 windowPosition = null;
+    public Vector2 windowSize = null;
 
     public Vector2 position = null;
     public Vector2 size = null;
@@ -177,10 +207,13 @@ class Panel {
     public static String context = null;
     public boolean open = true;
 
-    public boolean nextButtonInactive = false;
+    public boolean nextButtonDisabled = false;
     public boolean nextButtonHighlight = false;
+    public boolean nextButtonAbsPos = false;
+
 
     private static HashMap<String, Double> scrolls = new HashMap<>();
+    private ArrayList<Shape> clipsStack = new ArrayList<>();
 
     private boolean isResizing = false;
     private Vector2 resizingStartMousePos;
@@ -188,6 +221,7 @@ class Panel {
     private Vector2 resizingStartPrevPos;
     private Vector2 resizingRestriction = new Vector2(1.0);
     private boolean flipResizingAnchor = true;
+    public boolean disabled = false;
 
     private boolean isMoving = false;
     private Vector2 movementPrevPos;
@@ -197,9 +231,21 @@ class Panel {
     }
 
     public void End() {
-        this.position = this.initialPosition.scale(1.0);
-        this.size = this.initialSize.scale(1.0);
-        g.setClip(0, 0, Game.WINDOW_WIDTH, Game.WINDOW_HEIGHT);
+        this.position = this.windowPosition.scale(1.0);
+        this.size = this.windowSize.scale(1.0);
+
+        if (this.disabled) {
+            g.setColor(new Color(0, 0, 0, 200));
+            GG.fillRect(this.windowPosition, this.windowSize);
+        }
+        
+        Shape firstClip = this.clipsStack.size() > 0 ? this.clipsStack.get(0) : null;
+        if (firstClip != null) {
+            g.setClip(firstClip);
+        } else {
+            g.setClip(0, 0, Game.WINDOW_WIDTH, Game.WINDOW_HEIGHT);
+        }
+        this.clipsStack.clear();
     }
 
     public void Begin(Graphics2D g, Vector2 position, Vector2 size) {
@@ -207,44 +253,43 @@ class Panel {
 
         if (this.size == null) {
             this.size = size;
-            this.initialSize = size.scale(1.0);
+            this.windowSize = size.scale(1.0);
         }
         if (this.position == null) {
             this.position = position;
-            this.initialPosition = position.scale(1.0);
+            this.windowPosition = position.scale(1.0);
         }
 
-        g.setColor(new Color(0x2e2e2e));
+        g.setColor(PANEL_BG);
         GG.fillRect(this.position, this.size); // Fill panel background
-        g.setColor(new Color(0x777777));
+        g.setColor(this.disabled ? BUTTON_DOWN_BG : new Color(0x777777));
         GG.drawRect(this.position.sub(new Vector2(1, 1)), this.size.add(new Vector2(2, 2))); // Border
 
         double grabbingRadius = 10.0;
 
 
-        boolean grabbingTop = Vector2.AABBContainsPoint(initialPosition.add(new Vector2(0, -grabbingRadius)),
-                                                         new Vector2(initialSize.x, grabbingRadius),
+        boolean grabbingTop = Vector2.AABBContainsPoint(windowPosition.add(new Vector2(0, -grabbingRadius)),
+                                                         new Vector2(windowSize.x, grabbingRadius),
                                                          Game.mousePos);
-        boolean grabbingBottom = Vector2.AABBContainsPoint(initialPosition.add(new Vector2(0, this.initialSize.y)),
-                                                            new Vector2(initialSize.x, grabbingRadius),
+        boolean grabbingBottom = Vector2.AABBContainsPoint(windowPosition.add(new Vector2(0, this.windowSize.y)),
+                                                            new Vector2(windowSize.x, grabbingRadius),
                                                             Game.mousePos);
 
-        boolean grabbingLeft = Vector2.AABBContainsPoint(initialPosition.add(new Vector2(-grabbingRadius, 0)),
-                                                          new Vector2(grabbingRadius, initialSize.y),
+        boolean grabbingLeft = Vector2.AABBContainsPoint(windowPosition.add(new Vector2(-grabbingRadius, 0)),
+                                                          new Vector2(grabbingRadius, windowSize.y),
                                                           Game.mousePos);
-        boolean grabbingRight = Vector2.AABBContainsPoint(initialPosition.add(new Vector2(initialSize.x, 0)),
-                                                          new Vector2(grabbingRadius, initialSize.y),
+        boolean grabbingRight = Vector2.AABBContainsPoint(windowPosition.add(new Vector2(windowSize.x, 0)),
+                                                          new Vector2(grabbingRadius, windowSize.y),
                                                           Game.mousePos);
-
 
         Vector2 scalingDifference = new Vector2();
 
-        if (Game.IsMousePressed(MouseEvent.BUTTON1)) {
+        if (!this.disabled && Game.IsMousePressed(MouseEvent.BUTTON1)) {
             if (!this.isResizing && grabbingTop || grabbingBottom || grabbingRight || grabbingLeft) {
                 if (this.resizingStartMousePos == null) {
                     this.resizingStartMousePos = Game.mousePos.scale(1.0);
-                    this.resizingStartPrevSize = this.initialSize.scale(1.0);
-                    this.resizingStartPrevPos = this.initialPosition.scale(1.0);
+                    this.resizingStartPrevSize = this.windowSize.scale(1.0);
+                    this.resizingStartPrevPos = this.windowPosition.scale(1.0);
 
                     if (grabbingTop || grabbingBottom) {
                         this.resizingRestriction = new Vector2(0.0, 1.0);
@@ -261,10 +306,10 @@ class Panel {
                     }
 
                     Vector2[] corners = {
-                        this.initialPosition,
-                        this.initialPosition.add(new Vector2(this.initialSize.x, 0.0)),
-                        this.initialPosition.add(new Vector2(0, this.initialSize.y)),
-                        this.initialPosition.add(this.initialSize),
+                        this.windowPosition,
+                        this.windowPosition.add(new Vector2(this.windowSize.x, 0.0)),
+                        this.windowPosition.add(new Vector2(0, this.windowSize.y)),
+                        this.windowPosition.add(this.windowSize),
                     };
                     for (Vector2 corner : corners) {
                         if (Game.mousePos.distance(corner) < 2.0*grabbingRadius) {
@@ -275,7 +320,7 @@ class Panel {
                 this.isResizing = true;
             }
         }
-        if (Game.IsMouseReleased(MouseEvent.BUTTON1)) {
+        if (!this.disabled && Game.IsMouseReleased(MouseEvent.BUTTON1)) {
             this.resizingStartMousePos = null;
             this.resizingStartPrevSize = null;
             this.isResizing = false;
@@ -295,23 +340,24 @@ class Panel {
         } else if (grabbingBottom) {
             cursor = Cursor.S_RESIZE_CURSOR;
         }
-        if (cursor != -1) {
+        if (!this.disabled && cursor != -1) {
             Game.currentCursor = Cursor.getPredefinedCursor(cursor);
         }
         
         if (this.isResizing) {
             if (this.flipResizingAnchor) {
                 // Right and down
-                this.initialSize = this.resizingStartPrevSize.sub(scalingDifference);
+                this.windowSize = this.resizingStartPrevSize.sub(scalingDifference);
             } else {
                 // Left and up
-                this.initialPosition = this.resizingStartPrevPos.sub(scalingDifference);
-                this.initialSize = this.resizingStartPrevSize.sub(this.initialPosition.sub(this.resizingStartPrevPos));
+                this.windowPosition = this.resizingStartPrevPos.sub(scalingDifference);
+                this.windowSize = this.resizingStartPrevSize.sub(this.windowPosition.sub(this.resizingStartPrevPos));
             }
         }
 
-        g.setClip((int)this.initialPosition.x, (int)this.initialPosition.y,
-                    (int)this.initialSize.x, (int)this.initialSize.y);
+        this.clipsStack.add(g.getClip());
+        g.setClip((int)this.windowPosition.x, (int)this.windowPosition.y,
+                    (int)this.windowSize.x, (int)this.windowSize.y);
     }
 
     public void Name(String name) {
@@ -319,18 +365,17 @@ class Panel {
             name = context + " - " + name;
         }
 
-        Vector2 labelDims = this.CenteredLabel(name, new Vector2(), new Vector2(this.size.x, 4+TileMapEditor.ED_FONT_SIZE));
-        double y = this.position.y + 8+labelDims.y;
+        Vector2 labelDims = this.CenteredLabel(name, new Vector2(0, PADDING), new Vector2(this.size.x, 4+TileMapEditor.ED_FONT_SIZE));
+        double y = 2*PADDING + this.position.y + PADDING+labelDims.y;
         
         g.setColor(new Color(0x777777));
         GG.drawLine(this.position.x, y, this.position.x + this.size.x, y);
-
 
         boolean mouseInHeader = Vector2.AABBContainsPoint(this.position, labelDims, Game.mousePos);
         if (Game.IsMousePressed(MouseEvent.BUTTON1)) {
             if (!this.isResizing && mouseInHeader) {
                 this.isMoving = true;
-                this.movementPrevPos = this.initialPosition.scale(1.0);
+                this.movementPrevPos = this.windowPosition.scale(1.0);
                 this.movementStartMousePos = Game.mousePos.scale(1.0);
             }
         }
@@ -338,20 +383,29 @@ class Panel {
             this.isMoving = false;
         }
 
-        if (this.isMoving) {
+        if (!this.disabled && this.isMoving) {
             Game.currentCursor = Cursor.getPredefinedCursor(Cursor.MOVE_CURSOR);
-            this.initialPosition = this.movementPrevPos.add(Game.mousePos.sub(this.movementStartMousePos));
+            this.windowPosition = this.movementPrevPos.add(Game.mousePos.sub(this.movementStartMousePos));
         }
 
-        this.position.y += 8+labelDims.y;
+        this.position.y = y+PADDING;
     }
 
-    private Vector2 currentHeaderPos;
-    private Vector2 currentHeaderSize;
-    private Vector2 currentHeaderPrevPos;
-    private Vector2 currentHeaderRCursor;
+    public boolean CloseButton() {
+        final double buttonSize = 20.f;
+        double x = (this.windowPosition.x + this.windowSize.x) - buttonSize - PADDING, y = this.windowPosition.y + PADDING;
+        
+        this.nextButtonAbsPos = true;
+        return this.Button("x", new Vector2(x, y), new Vector2(buttonSize));
+    }
 
-    public Vector2 HeaderBegin(String headerName) {
+    private Vector2 currentEntryPos;
+    private Vector2 currentEntrySize;
+    private Vector2 currentEntryPrevPos;
+    private Vector2 currentEntryRCursor;
+    private Vector2 currentEntryLabelDims;
+
+    public Vector2 EntryBegin(String headerName) {
         Vector2 position = this.position;
         Vector2 size = new Vector2(this.size.x, LINE_HEIGHT);
 
@@ -359,34 +413,126 @@ class Panel {
         GG.drawLine(position.x + PADDING, position.y+size.y,
                     position.x + size.x - 2*PADDING, position.y+size.y);
 
-        this.CenteredYLabel(headerName, new Vector2(PADDING, 0), new Vector2(0, LINE_HEIGHT));
+        Vector2 labelDims = this.CenteredYLabel(headerName, new Vector2(PADDING, 0), new Vector2(0, LINE_HEIGHT));
 
-        this.currentHeaderPos = position;
-        this.currentHeaderSize = size;
-        this.currentHeaderPrevPos = this.position.scale(1.0);
-        this.currentHeaderRCursor = new Vector2(this.size.x - PADDING, 0);
+        this.currentEntryLabelDims = labelDims;
+        this.currentEntryPos = position;
+        this.currentEntrySize = size;
+        this.currentEntryPrevPos = this.position.scale(1.0);
+        this.currentEntryRCursor = new Vector2(this.size.x - PADDING, 0);
 
         return size;
     }
 
-    public boolean HeaderButton(String text) {
+    public boolean EntryButton(String text) {
         double buttonHeight = TileMapEditor.ED_FONT_SIZE+PADDING;
 
         boolean state = this.ButtonFromTopRight(text,
-                                                this.currentHeaderRCursor.add(new Vector2(0, LINE_HEIGHT/2.0 - buttonHeight/2.0)),
+                                                this.currentEntryRCursor.add(new Vector2(0, LINE_HEIGHT/2.0 - buttonHeight/2.0)),
                                                 new Vector2(0, buttonHeight));
 
-        this.currentHeaderRCursor.x -= this.lastButtonSize.x+PADDING;
+        this.currentEntryRCursor.x -= this.lastButtonSize.x+PADDING;
 
         return state;
     }
 
-    public void HeaderEnd() {
-        this.position = this.currentHeaderPrevPos.add(new Vector2(0.0, this.currentHeaderSize.y + PADDING));
+    public double nextSliderWidth = 0;
+    public double EntrySlider(double value, double min, double max) {
+        double sliderThickness = 6.0;
+        
+        double rightX = this.currentEntryRCursor.x + this.position.x - PADDING;
+        double leftX = this.currentEntryPos.x + this.currentEntryLabelDims.x + 4*PADDING;
+        Vector2 sliderSize = new Vector2(rightX - leftX,
+                                         sliderThickness);
+
+        if (this.nextSliderWidth != 0) {
+            if (this.nextSliderWidth <= 1.0) {
+                sliderSize.x = sliderSize.x * this.nextSliderWidth;
+            } else {
+                sliderSize.x = this.nextSliderWidth;
+            }
+        }
+        this.nextSliderWidth = 0;
+
+        Vector2 sliderPos = this.position.add(this.currentEntryRCursor)
+                                         .add(new Vector2(-(sliderSize.x + PADDING), LINE_HEIGHT/2.0 - sliderThickness/2.0));
+
+        Rectangle sliderHitBox = new Rectangle((int)sliderPos.x, (int)(this.currentEntryRCursor.y+this.position.y), (int)sliderSize.x, (int)LINE_HEIGHT);
+        boolean hovering = sliderHitBox.contains(Game.mousePos.x, Game.mousePos.y);
+                                 
+        if (hovering) {
+            if (Game.IsKeyPressed(KeyEvent.VK_LEFT)) {
+                System.out.println("La");
+                value -= 1.0;
+            } else if (Game.IsKeyPressed(KeyEvent.VK_RIGHT)) {
+                value += 1.0;
+            }
+        //     System.out.println("Hovering");
+        }
+
+        g.setFont(TileMapEditor.ED_FONT);
+
+        FontMetrics m = g.getFontMetrics();
+        
+        String maxText = Integer.toString((int)max), minText = Integer.toString((int)min);
+        double maxTextWidth = m.stringWidth(maxText), minTextWidth = m.stringWidth(minText);
+
+        double dotSize = 12.0;
+        double currentPercent = (value - min)/(max - min);
+
+        maxTextWidth += PADDING/2.0;
+        minTextWidth += PADDING/2.0;
+
+        sliderSize.x -= (maxTextWidth + minTextWidth);
+        sliderPos.x += minTextWidth;
+
+        Vector2 dotPosition = new Vector2(sliderPos.x + sliderSize.x*currentPercent, sliderPos.y + sliderThickness/2.0 - dotSize/2.0);
+
+        g.setColor(BUTTON_BG);
+        GG.fillRoundRect(sliderPos.x, sliderPos.y, sliderSize.x, sliderSize.y, sliderThickness, sliderThickness);
+
+        double textY = -sliderThickness/2.0 + sliderPos.y + m.getHeight() - m.getHeight()/2.0;
+
+        g.setColor(Color.WHITE);
+        GG.drawString(minText, sliderPos.x - minTextWidth - PADDING/2.0, textY);
+        GG.drawString(maxText, sliderPos.x + sliderSize.x + PADDING/2.0, textY);
+
+        g.setColor(BUTTON_HILI_BG);
+        GG.fillOval(dotPosition, new Vector2(dotSize));
+
+        if (!hovering) {
+            Color overlay = new Color(46, 46, 46, 100);
+            g.setColor(overlay);
+            g.fillRect(sliderHitBox.x, sliderHitBox.y, sliderHitBox.width, sliderHitBox.height);
+        } else if (!this.disabled) {
+            String currentValueText = Integer.toString((int)Vector2.lerp(min, max, currentPercent));
+            int currentValueWidth = m.stringWidth(currentValueText);
+
+            g.setColor(BUTTON_BORDER);
+            GG.fillRect(dotPosition.x+dotSize/2.0 - currentValueWidth/2.0, dotPosition.y+dotSize/2.0 - m.getAscent()/2.0, currentValueWidth, m.getAscent());
+            g.setColor(Color.WHITE);
+            GG.drawString(currentValueText, dotPosition.x+dotSize/2.0 - currentValueWidth/2.0, m.getAscent() + dotPosition.y+dotSize/2.0 - m.getAscent()/2.0);
+
+            if (Game.IsMouseDown(MouseEvent.BUTTON1)) {
+                double newPercentage = (Game.mousePos.x - sliderPos.x)/sliderSize.x;
+                if (newPercentage > 1.0) newPercentage = 1.0;
+                if (newPercentage < 0.0) newPercentage = 0.0;
+
+                return min + (max - min) * newPercentage;
+            }
+        }
+
+        return value;
     }
 
+    public void EntryEnd() {
+        this.position = this.currentEntryPrevPos.add(new Vector2(0.0, this.currentEntrySize.y + PADDING));
+    }
+
+    public boolean nextLabelAbsPosition = false;
     public Vector2 CenteredLabel(String text, Vector2 position, Vector2 size) {
-        position = position.add(this.position);
+        if (!this.nextLabelAbsPosition)
+            position = position.add(this.position);
         g.setFont(TileMapEditor.ED_FONT);
 
         FontMetrics m = g.getFontMetrics();
@@ -396,6 +542,8 @@ class Panel {
         g.drawString(text, (int)(position.x + size.x / 2 - textWidth / 2),
                      (int)(position.y + size.y/2.0 + m.getHeight()/2.0));
         
+        this.nextLabelAbsPosition = false;
+
         return size;
     }
 
@@ -404,32 +552,81 @@ class Panel {
         this.position.y += buttonSize.y+spacing;
     }
 
+    private double flowLayoutCurrentHeight = 0;
+    private Vector2 flowLayoutCursor = new Vector2();
+
+    public void FlowLayoutBegin() {
+        this.flowLayoutCursor = new Vector2(PADDING);
+    }
+
+    public void FlowLayoutEnd() {
+        this.position = this.flowLayoutCursor.add(new Vector2(0, this.flowLayoutCurrentHeight + 2*PADDING));
+    }
+
+    public Vector2 FlowLayoutAdd(Vector2 size) {
+        if (this.flowLayoutCursor.x + size.x > this.size.x) {
+            this.flowLayoutCursor.y += this.flowLayoutCurrentHeight + PADDING;
+            this.flowLayoutCursor.x = PADDING;
+            this.flowLayoutCurrentHeight = 0;
+        }
+        
+        if (size.y > this.flowLayoutCurrentHeight) {
+            this.flowLayoutCurrentHeight = size.y;
+        }
+
+        Vector2 elementPos = flowLayoutCursor.scale(1.0);
+        flowLayoutCursor.x += size.x + PADDING;
+        
+        return elementPos.add(this.position);
+    }
+
     private Vector2 currentListPrevPosition;
     private Vector2 currentListPrevSize;
-    private Vector2 currentListTopLeft;
+    protected Vector2 currentListTopLeft;
     private String currentListRandomName;
-    private Shape currentListPrevClip;
     private AffineTransform currentListPrevTransform;
 
-    public Vector2 ListBegin(String name, Vector2 size) {
-        this.currentListRandomName = name;
+    public double GetListScroll() {
+        Double value = Panel.scrolls.get(this.currentListRandomName);
+        if (value != null) {
+            return value.doubleValue();
+        }
+        return 0;   
+    }
+
+    public Vector2 ListBegin(String uniqueName, Vector2 offset, Vector2 size) {
+        this.currentListRandomName = uniqueName;
         this.currentListPrevPosition = this.position.scale(1.0); 
         this.currentListPrevSize = this.size.scale(1.0);
-        this.currentListPrevClip = g.getClip();
 
-        Vector2 position = this.position.add(new Vector2(PADDING, 0));
+        if (offset.x <= 1.0) {
+            offset.x = this.size.x * offset.x;
+        }
+        if (offset.y <= 1.0) {
+            offset.y = this.remainingVerticalSpace() * offset.y;
+        }
+
+        Vector2 position = this.position.add(new Vector2(PADDING, 0)).add(offset);
         this.currentListTopLeft = position.scale(1.0);
+
+        if (size.x >= -1.0 && size.x <= 1.0) {
+            size.x = this.size.x * size.x;
+        }
+        if (size.y >= -1.0 && size.y <= 1.0) {
+            size.y = this.remainingVerticalSpace() * size.y;
+        }
 
         if (size.x == 0) {
             size.x = this.size.x - 2*PADDING; // Expand to full width
         }
         if (size.y <= 0) {
-            size.y = this.size.y-(this.position.y - this.initialPosition.y) - PADDING + size.y; // Remaning space
+            size.y = this.size.y - (this.position.y - this.windowPosition.y) - PADDING + size.y; // Remaning space
         }
 
         g.setColor(BUTTON_BORDER);
         GG.drawRect(position, size);
 
+        this.clipsStack.add(g.getClip());
         g.setClip((int)position.x, (int)position.y, (int)size.x, (int)size.y);
 
         Double scrollPixels = Panel.scrolls.get(this.currentListRandomName);
@@ -438,7 +635,8 @@ class Panel {
         }
         this.currentListPrevTransform = g.getTransform();
         // g.translate(0, -scrollPixels);
-        this.position = position;
+        this.position.x = position.x;
+        this.position.y = position.y;
         this.position.y -= scrollPixels;
 
         this.size = size;
@@ -458,7 +656,7 @@ class Panel {
 
         double contentBottomCoord = (this.position.y-this.currentListTopLeft.y);
 
-        if (contentBottomCoord != 0 && contentBottomCoord > this.size.y) {
+        if ((contentBottomCoord != 0 && contentBottomCoord > this.size.y)) {
             double scrollBarWidth = 10.0;
             Vector2 scrollBarPos = this.currentListTopLeft.add(new Vector2(this.size.x - scrollBarWidth, 0));
             Vector2 scrollBarSize = new Vector2(scrollBarWidth, this.size.y);
@@ -466,7 +664,7 @@ class Panel {
             double percentContentVisible = this.size.y / contentBottomCoord;
             double scrollBarButtonSizeY = this.size.y * percentContentVisible;
 
-            if (Vector2.AABBContainsPoint(this.currentListTopLeft, this.size, Game.mousePos)) {
+            if (!this.disabled && Vector2.AABBContainsPoint(this.currentListTopLeft, this.size, Game.mousePos)) {
                 scrollPixels += Game.deltaScroll;
             }
             double minScroll = 0.0, maxScroll = contentBottomCoord - this.size.y;
@@ -497,11 +695,15 @@ class Panel {
         this.position = this.currentListPrevPosition;
         this.size = this.currentListPrevSize;
 
-        g.setClip(this.currentListPrevClip);
+        if (this.clipsStack.size() > 0) {
+            g.setClip(this.clipsStack.remove(this.clipsStack.size()-1));
+        } else {
+            g.setClip(0, 0, Game.WINDOW_WIDTH, Game.WINDOW_HEIGHT);
+        }
     }
 
     private double remainingVerticalSpace() {
-        return this.size.y - (this.position.y-this.initialPosition.y);
+        return this.size.y - (this.position.y-this.windowPosition.y);
     }
 
     public Vector2 CenteredYLabel(String text, Vector2 position, Vector2 size) {
@@ -513,21 +715,24 @@ class Panel {
 
         int baselineY = (int) (position.y + (size.y - (m.getAscent() + m.getDescent())) / 2 + m.getAscent());
 
+        size.x = m.stringWidth(text);
         g.drawString(text, (int)(position.x), baselineY);
         
         return size;
     }
 
-    private Vector2 lastButtonSize;
+    protected Vector2 lastButtonSize;
     public boolean Button(String text, Vector2 position, Vector2 size) {
-        if (position.x <= 1.0) {
-            position.x = position.x * this.size.x;
+        if (!this.nextButtonAbsPos) {
+            if (position.x <= 1.0) {
+                position.x = position.x * this.size.x;
+            }
+            if (position.y <= 1.0) {
+                position.y = position.y * this.remainingVerticalSpace();
+            }
+    
+            position = position.add(this.position);
         }
-        if (position.y <= 1.0) {
-            position.y = position.y * this.remainingVerticalSpace();
-        }
-
-        position = position.add(this.position);
 
         g.setFont(TileMapEditor.ED_FONT);
 
@@ -549,9 +754,9 @@ class Panel {
             size.y = size.y * this.remainingVerticalSpace();
         }
 
-        boolean inactive = this.nextButtonInactive;
+        boolean inactive = this.nextButtonDisabled;
         boolean highlight = this.nextButtonHighlight;
-        boolean hovering = !inactive && Vector2.AABBContainsPoint(position, size, Game.mousePos);
+        boolean hovering = !this.disabled && (!inactive && Vector2.AABBContainsPoint(position, size, Game.mousePos));
         boolean clicked = Game.IsMousePressed(MouseEvent.BUTTON1);
 
         if (inactive) {
@@ -572,8 +777,9 @@ class Panel {
         g.drawString(text, (int)(position.x + size.x / 2 - textWidth / 2), baselineY);
         
         this.lastButtonSize = size;
-        this.nextButtonInactive = false;
+        this.nextButtonDisabled = false;
         this.nextButtonHighlight = false;
+        this.nextButtonAbsPos = false;
 
         return hovering && clicked;
     }
@@ -593,23 +799,261 @@ class Panel {
 }
 
 class TileMapEditor {
-    public int height = 340;
     public TileMap map;
 
     static Font ED_FONT;
     static int ED_FONT_SIZE = 14;
 
     private TileMapLayer currentLayer;
+    private SpriteSheet currentSelectedSheet;
     private JFileChooser fileChooser;
 
-    private String spriteSheetToLoad = null;
-    private BufferedImage spriteSheetToLoadImage = null;
-    private String spriteSheetToLoadError = null;
-    private Vector2 spriteSheetLoaderScroll = new Vector2();
-    private double spriteSheetLoaderZoom = 3.f;
-    private Vector2 spriteSheetLoaderMovementStart = null;
-    private Vector2 spriteSheetLoaderInitialScroll = null;
-    private int spriteSheetLoaderTileSize = 16;
+    private boolean sslVisible = false;
+    private String sslImgPath = null;
+    private SpriteSheet sslSheet = null;
+    private BufferedImage sslImage = null;
+    private String sslError = null;
+    private boolean sslIsNew = true;
+    private Vector2 sslScroll = new Vector2();
+    private double sslZoomTarget = 3.0;
+    private double sslZoom = 3.0;
+    
+    private void sslReset() {
+        this.sslVisible = false;
+        this.sslImgPath = null;
+        this.sslImage = null;
+        this.sslError = null;
+        this.sslSheet = null;
+        this.sslIsNew = true;
+        this.sslScroll = new Vector2();
+        this.sslZoomTarget = 3.0;
+        this.sslZoom = 3.0;
+    }
+
+    private void SpriteSheetLoader(Graphics2D g) {
+        this.layers.disabled = true;
+        this.sheetsPanel.disabled = true;
+
+        if (this.sslSheet != null) {
+            this.sslImage = this.sslSheet.image;
+            this.sslImgPath = null;
+        }
+
+        if (this.sslImgPath != null) {
+            try {
+                BufferedImage loadedImage = ImageIO.read(new File(this.sslImgPath));
+                if (loadedImage != null) {
+                    // Get the screen's default graphics configuration
+                    GraphicsEnvironment env = GraphicsEnvironment.getLocalGraphicsEnvironment();
+                    GraphicsDevice device = env.getDefaultScreenDevice();
+                    GraphicsConfiguration config = device.getDefaultConfiguration();
+
+                    // Create a compatible image with the same width, height, and transparency as the loaded image
+                    BufferedImage sslImage = config.createCompatibleImage(
+                            loadedImage.getWidth(),
+                            loadedImage.getHeight(),
+                            loadedImage.getTransparency()
+                    );
+
+                    // Draw the loaded image onto the compatible image
+                    Graphics imageG = sslImage.getGraphics();
+                    imageG.drawImage(loadedImage, 0, 0, null);
+                    imageG.dispose(); // Always dispose of Graphics objects when done
+
+                    this.sslImage = sslImage;
+                    this.sslError = null;
+                } else {
+                    throw new Exception("Tried to load image but got NULL.");
+                }
+            } catch (Exception e) {
+                this.sslError = e.getLocalizedMessage();
+            }
+        }
+
+        if (this.sslSheet == null && this.sslImage != null) {
+            this.sslSheet = new SpriteSheet(this.sslImage, 16);
+            this.sslSheet.name = new File(this.sslImgPath).getName();
+        }
+        
+        final double ssEditorPadding = 40.;
+        Panel ssEditor = new Panel();
+        ssEditor.Begin(g, new Vector2(ssEditorPadding), new Vector2(Game.WINDOW_WIDTH-2*ssEditorPadding, Game.WINDOW_HEIGHT-2*ssEditorPadding));
+
+        ssEditor.Name("Sprite Sheet Editor \"" + this.sslImgPath + "\"");
+        if (ssEditor.CloseButton()) {
+            this.sslReset();
+            return;
+        }
+
+        ssEditor.size.y -= Panel.PADDING;
+
+        Vector2 prevPosition = ssEditor.position.scale(1.0);
+        Vector2 prevSize = ssEditor.size.scale(1.0);
+
+        if (this.sslError == null && this.sslImage != null && this.sslSheet != null) {
+            Vector2 leftCSize = ssEditor.ListBegin("SSEdLeftC", new Vector2(), new Vector2(0.33, -40));
+                ssEditor.size.x -= 2*Panel.PADDING;
+                ssEditor.size.y -= Panel.PADDING;
+
+                ssEditor.EntryBegin("Sprite Sheet Properties");
+                ssEditor.EntryEnd();
+
+                ssEditor.ListBegin("SSEditorProperties", new Vector2(), new Vector2(1.0, 0.5));
+                    ssEditor.EntryBegin("Tile Size: ");
+                    
+                    if (ssEditor.EntryButton("Update & Reset")) {
+                        this.sslSheet.UpdateTilesSize();
+                    }
+                    this.sslSheet.tileSize = (int)ssEditor.EntrySlider(this.sslSheet.tileSize, 2, 128);
+
+                    ssEditor.EntryEnd();
+
+                    ssEditor.EntryBegin("Grid Visibiltiy: ");
+                    if (ssEditor.EntryButton("Toggle")) {
+                        this.sslGridVisible = !this.sslGridVisible;
+                    }
+                    ssEditor.EntryEnd();
+                ssEditor.ListEnd();
+
+                ssEditor.EntryBegin("Tile Properties");
+                ssEditor.EntryEnd();
+
+                ssEditor.ListBegin("SSTileProperties", new Vector2(), new Vector2(1.0, 1.0));
+                ssEditor.ListEnd();
+
+                if (ssEditor.Button("Cancel", new Vector2(Panel.PADDING, 0), new Vector2(0, 40))) {
+                    this.sslReset();
+                    return;
+                }
+
+                if (ssEditor.Button(this.sslIsNew ? "Create Sheet" : "Save Sheet", new Vector2(ssEditor.lastButtonSize.x + 4*Panel.PADDING, 0), new Vector2(0, 40))) {
+                    if (this.sslIsNew) {
+                        this.map.ownedSheets.add(this.sslSheet);
+                    }
+
+                    System.out.println("[LOG]: Added sprite sheet: `" + this.sslSheet.name + "` to map.");
+                    this.sslReset();
+
+                    return;
+                }
+            ssEditor.ListEnd();
+
+
+            prevPosition.x += leftCSize.x + Panel.PADDING;
+            prevSize.x -= leftCSize.x + 2*Panel.PADDING;
+
+            ssEditor.position = prevPosition;
+            ssEditor.size = prevSize;
+
+            ssEditor.ListBegin("spriteSheetEdSheet", new Vector2(0, 0), new Vector2(1.0, 1.0));
+
+            g.setColor(Color.BLACK);
+            g.fillRect(0, 0, Game.WINDOW_WIDTH, Game.WINDOW_HEIGHT);
+
+            AffineTransform prevTrans = g.getTransform();
+            Vector2 imagePos = new Vector2(-this.sslImage.getWidth() / 2.0, -this.sslImage.getHeight() / 2.0);
+            boolean hovering = Vector2.AABBContainsPoint(ssEditor.position, ssEditor.size, Game.mousePos);
+
+            if (hovering) {
+                // Adjust zoom based on scroll input
+                this.sslZoomTarget -= Game.deltaScroll * 0.06;
+
+                // Handle panning (mouse drag with middle button)
+                if (Game.IsMousePressed(MouseEvent.BUTTON2) && this.sslMovMouseStart == null) {
+                    this.sslMovMouseStart = Game.mousePos.scale(1.0);
+                    this.sslMovInitialScroll = this.sslScroll.scale(1.0);
+                }
+
+                if (this.sslMovMouseStart != null) {
+                    Vector2 delta = this.sslMovMouseStart.sub(Game.mousePos);
+                    this.sslScroll = this.sslMovInitialScroll.sub(delta);
+                    Game.currentCursor = Cursor.getPredefinedCursor(Cursor.MOVE_CURSOR);
+                }
+
+                if (Game.IsMouseReleased(MouseEvent.BUTTON2)) {
+                    this.sslMovMouseStart = null;
+                }
+            }
+
+            // Update smooth zoom
+            this.sslZoom = Vector2.lerpFRI(this.sslZoom, this.sslZoomTarget, 0.99, Game.deltaTime);
+
+            // Apply transformations
+            g.translate(this.sslScroll.x, this.sslScroll.y);
+            g.translate(ssEditor.position.x + ssEditor.size.x / 2.0, ssEditor.position.y + ssEditor.size.y / 2.0);
+            g.scale(this.sslZoom, this.sslZoom);
+
+            AffineTransform currentTransform = g.getTransform();
+
+            // Transform the mouse position relative to the current view
+            Point relativeMousePos = new Point();
+            try {
+                currentTransform.inverseTransform(
+                    new Point((int) Game.mousePos.x, (int) Game.mousePos.y),
+                    relativeMousePos
+                );
+            } catch (Exception e) {
+                e.printStackTrace(); // Handle any exceptions from inverse transform
+            }
+
+            for (int y = 0; y < this.sslSheet.numTilesY; y++) {
+                for (int x = 0; x < this.sslSheet.numTilesX; x++) {
+                    Tile t = this.sslSheet.tiles.get(y * this.sslSheet.numTilesX + x);
+                    if (t != null) {
+                        t.Draw(g, imagePos.x + x*this.sslSheet.tileSize, imagePos.y + y * this.sslSheet.tileSize,
+                                this.sslSheet.tileSize, this.sslSheet.tileSize);
+                    }
+                }
+            }
+
+            // g.drawImage(this.sslImage, (int)imagePos.x, (int)imagePos.y, null);
+
+            for (int y = 0; y < this.sslSheet.numTilesY; y++) {
+                for (int x = 0; x < this.sslSheet.numTilesX; x++) {
+                    Color tileOutlineColor = new Color(175, 50, 200, 100);
+                    Rectangle tileRectangle = new Rectangle();
+
+                    boolean drawOutline = this.sslGridVisible;
+                    boolean hoveringTile = false;
+
+                    tileRectangle.x = (int)(imagePos.x + x * this.sslSheet.tileSize);
+                    tileRectangle.y = (int)(imagePos.y + y * this.sslSheet.tileSize);
+                    tileRectangle.width = this.sslSheet.tileSize;
+                    tileRectangle.height = this.sslSheet.tileSize;
+
+                    if (tileRectangle.contains(relativeMousePos)) {
+                        tileOutlineColor = new Color(175, 50, 200);
+                        hoveringTile = true;
+                        drawOutline = true;
+                    }
+
+                    g.setColor(tileOutlineColor);
+
+                    if (drawOutline) {
+                        g.setStroke(new BasicStroke(hoveringTile ? 0.5f : 0.25f));
+
+                        GG.drawRect(imagePos.x + x*this.sslSheet.tileSize, imagePos.y + y * this.sslSheet.tileSize,
+                                    this.sslSheet.tileSize, this.sslSheet.tileSize);
+                    }
+                }
+            }
+
+            g.setTransform(prevTrans);
+
+            ssEditor.ListEnd();
+        } else {
+            ssEditor.EntryBegin("Error: " + this.sslError);
+            ssEditor.EntryEnd();
+        }
+
+        ssEditor.End();
+    }
+
+    private double ssDisplayZoom = 17.0;
+    private boolean sslGridVisible = true;
+    private Vector2 sslMovMouseStart = null;
+    private Vector2 sslMovInitialScroll = null;
+
 
     private int layerCount = 1;
 
@@ -634,27 +1078,11 @@ class TileMapEditor {
     }
     
     public void Update(double dt) {
-        if (Game.IsKeyPressed(KeyEvent.VK_UP)) {
-            ED_FONT_SIZE += 2;
-            LoadInterfaceFont();
-        } else if (Game.IsKeyPressed(KeyEvent.VK_DOWN)) {
-            ED_FONT_SIZE -= 2;
-            LoadInterfaceFont();
-        }
-
-        if (Game.IsKeyPressed(KeyEvent.VK_LEFT)) {
-            Panel.LINE_HEIGHT -= 2;
-        }
-        if (Game.IsKeyPressed(KeyEvent.VK_RIGHT)) {
-            Panel.LINE_HEIGHT += 2;
-        }
     }
-    
-    static Color BUTTON_HOVERING_COLOR = new Color(0xc4c4c4);
-    private int scrollLeftPanel = 0;
     
     Panel sheetsPanel = new Panel();
     Panel layers = new Panel();
+
     public void Draw(Graphics2D g) throws NoninvertibleTransformException {
         Panel.context = "Editor";
 
@@ -662,8 +1090,8 @@ class TileMapEditor {
         
         layers.Name("Layers");
         
-        layers.HeaderBegin("Layers");
-        if (layers.HeaderButton("New")) {
+        layers.EntryBegin("Layers");
+        if (layers.EntryButton("New")) {
             TileMapLayer newLayer = new TileMapLayer(map);
             
             newLayer.name = "Layer " + (++this.layerCount);
@@ -672,8 +1100,8 @@ class TileMapEditor {
             this.map.layers.add(newLayer);
         }
         
-        layers.nextButtonInactive = (currentLayer == null);
-        if (layers.HeaderButton("Delete")) {
+        layers.nextButtonDisabled = (currentLayer == null);
+        if (layers.EntryButton("Delete")) {
             this.map.layers.remove(this.currentLayer);
             if (this.map.layers.size() == 0) {
                 this.currentLayer = null;
@@ -681,13 +1109,13 @@ class TileMapEditor {
                 this.currentLayer = this.map.layers.get(this.map.layers.size()-1);
             }
         }
-        layers.nextButtonInactive = (currentLayer == null);
-        if (layers.HeaderButton("Rename")) {
+        layers.nextButtonDisabled = (currentLayer == null);
+        if (layers.EntryButton("Rename")) {
             // TODO: Rename layers
         }
-        layers.HeaderEnd();
+        layers.EntryEnd();
         
-        layers.ListBegin("Layers", new Vector2(0, -40.0));   
+        layers.ListBegin("Layers", new Vector2(), new Vector2(0, -40.0));   
             for (TileMapLayer layer : this.map.layers) {
                 if (layer == currentLayer) {
                     layers.nextButtonHighlight = true;
@@ -701,13 +1129,13 @@ class TileMapEditor {
 
         int currentIndex = this.map.layers.indexOf(this.currentLayer);
         
-        layers.nextButtonInactive = (currentIndex == this.map.layers.size()-1);
+        layers.nextButtonDisabled = (currentIndex == this.map.layers.size()-1);
         if (layers.Button("Down", new Vector2(0.0, 0), new Vector2(0.5, 1.0))) {
             this.map.layers.remove(this.currentLayer);
             map.layers.add(currentIndex + 1, this.currentLayer);
         }
         
-        layers.nextButtonInactive = (currentIndex == 0);
+        layers.nextButtonDisabled = (currentIndex == 0);
         if (layers.Button("Up", new Vector2(0.5, 0), new Vector2(0.5, 1.0))) {
             this.map.layers.remove(this.currentLayer);
             map.layers.add(currentIndex - 1, this.currentLayer);
@@ -718,232 +1146,160 @@ class TileMapEditor {
         sheetsPanel.Begin(g, new Vector2(100, 40), new Vector2(300, 300));
         sheetsPanel.Name("Sprite Sheets");
             
-        sheetsPanel.HeaderBegin("Sheets");
-            if (sheetsPanel.HeaderButton("Add New")) {
-                // Button was pressed
+        sheetsPanel.EntryBegin("Sheets");
+            if (sheetsPanel.EntryButton("Add New")) {
+                if (this.fileChooser == null) {
+                    this.sheetsPanel.disabled = true;
+
+                    Game.ResetMouse();
+
+                    this.fileChooser = new JFileChooser("./res");
+                    this.fileChooser.setVisible(true);
+                    
+                    int r = this.fileChooser.showSaveDialog(null);
+                    if (r == JFileChooser.APPROVE_OPTION) {
+                        File f = this.fileChooser.getSelectedFile();
+                        
+                        this.sslReset();
+
+                        this.sslImgPath = f.getPath();
+                        this.sslVisible = true;
+                        this.sslIsNew = true;
+                    }
+                    
+                    Game.ResetMouse(); // Reseting mouse after file picker is neccesarry as it skips frames
+
+                    this.fileChooser = null;
+                }
             }
-        sheetsPanel.HeaderEnd();
+            
+            sheetsPanel.nextSliderWidth = 100;
+            this.ssDisplayZoom = sheetsPanel.EntrySlider(this.ssDisplayZoom, 0, 100);
+        sheetsPanel.EntryEnd();
+
+        Vector2 listSize = sheetsPanel.ListBegin("SpriteSheetList", new Vector2(), new Vector2(0, -(Panel.LINE_HEIGHT + 3*Panel.PADDING)));
+            final double minDisplayWidth = 50, maxDisplayWidth = 250;
+            Vector2 boxSize = new Vector2(Vector2.lerp(minDisplayWidth, maxDisplayWidth, this.ssDisplayZoom/100.0),
+                                          Vector2.lerp(minDisplayWidth/0.75, maxDisplayWidth/0.75, this.ssDisplayZoom/100.0));
+
+            if (Vector2.AABBContainsPoint(sheetsPanel.currentListTopLeft, listSize, Game.mousePos)) {
+                if (!sheetsPanel.disabled && Game.IsMousePressed(MouseEvent.BUTTON1)) {
+                    this.currentSelectedSheet = null;
+                }
+            }
+
+            sheetsPanel.FlowLayoutBegin();
+            
+            for (SpriteSheet sheet : this.map.ownedSheets) {
+                Rectangle imageArea = new Rectangle();
+                Vector2 pos = sheetsPanel.FlowLayoutAdd(boxSize);
+                double textAreaHeight = Panel.LINE_HEIGHT+Panel.PADDING;
+                
+                Shape prevClip = g.getClip();
+
+                boolean hovering = Vector2.AABBContainsPoint(pos, boxSize, Game.mousePos);
+                boolean selected = (this.currentSelectedSheet == sheet);
+
+                if (!sheetsPanel.disabled && hovering) {
+                    if (Game.IsMousePressed(MouseEvent.BUTTON1)) {
+                        this.currentSelectedSheet = sheet;
+                    }
+                }
+
+                g.setColor(selected ? Panel.BUTTON_HILI_BG : (hovering ? Panel.BUTTON_HOV_BG : Panel.BUTTON_BG));
+                GG.fillRect(pos, boxSize);
+    
+                g.setColor(Panel.BUTTON_BORDER);
+                GG.drawRect(pos, boxSize.sub(new Vector2(1)));
+                
+                imageArea.x = (int)(pos.x + Panel.PADDING);
+                imageArea.y = (int)(pos.y + Panel.PADDING);
+                
+                imageArea.width = (int)(boxSize.x - 2*Panel.PADDING);
+                imageArea.height = (int)(boxSize.y - textAreaHeight);
+                
+                g.setColor(Color.BLACK);
+                GG.fillRect(imageArea.x, imageArea.y, imageArea.width, imageArea.height);
+
+                g.clipRect((int)pos.x, (int)pos.y, (int)boxSize.x, (int)boxSize.y);
+
+                // Calculate the aspect ratio of the image and the image area
+                double imageAspect = (double) sheet.image.getWidth() / sheet.image.getHeight();
+                double areaAspect = (double) imageArea.width / imageArea.height;
+
+                // Determine the dimensions of the drawn image while maintaining the aspect ratio
+                int drawWidth, drawHeight;
+                if (imageAspect > areaAspect) {
+                    // Image is wider than the area; scale based on width
+                    drawWidth = imageArea.width;
+                    drawHeight = (int) (drawWidth / imageAspect);
+                } else {
+                    // Image is taller than the area; scale based on height
+                    drawHeight = imageArea.height;
+                    drawWidth = (int) (drawHeight * imageAspect);
+                }
+
+                // Center the image within the imageArea
+                int drawX = imageArea.x + (imageArea.width - drawWidth) / 2;
+                int drawY = imageArea.y + (imageArea.height - drawHeight) / 2;
+
+                // Draw the image
+                g.drawImage(
+                    sheet.image,
+                    drawX, drawY, drawX + drawWidth, drawY + drawHeight, // Destination rectangle
+                    0, 0, sheet.image.getWidth(null), sheet.image.getHeight(null),       // Source rectangle
+                    null                                                // Image observer
+                );
+
+                sheetsPanel.nextLabelAbsPosition = true;
+                sheetsPanel.CenteredLabel(sheet.name, pos.add(new Vector2(0, imageArea.height)), new Vector2(boxSize.x, textAreaHeight));
+
+                g.setClip(prevClip);
+            }
+
+            sheetsPanel.FlowLayoutEnd();
+        sheetsPanel.ListEnd();
+
+        listSize = sheetsPanel.ListBegin("SpriteSheetListActions", new Vector2(), new Vector2(0.0, 0.0));
+            sheetsPanel.FlowLayoutBegin();
+            
+            Vector2 buttonSize = new Vector2(sheetsPanel.size.x / 3.0 - 1.5*Panel.PADDING, listSize.y - 2*Panel.PADDING);
+            Vector2 position = sheetsPanel.FlowLayoutAdd(buttonSize);
+            
+            sheetsPanel.nextButtonAbsPos = true;
+            sheetsPanel.nextButtonDisabled = (this.currentSelectedSheet == null);
+            if (sheetsPanel.Button("Delete", position, buttonSize)) {
+                if (this.currentSelectedSheet != null) {
+                    this.map.DeleteSheet(this.currentSelectedSheet);
+                    this.currentSelectedSheet = null;
+                }
+            }
+
+            position = sheetsPanel.FlowLayoutAdd(buttonSize);
+            sheetsPanel.nextButtonAbsPos = true;
+            sheetsPanel.nextButtonDisabled = (this.currentSelectedSheet == null);
+            if (sheetsPanel.Button("Edit", position, buttonSize)) {
+                this.sslReset();
+                this.sslIsNew = false;
+                this.sslSheet = this.currentSelectedSheet;
+                this.sslVisible = true;
+            }
+
+            position = sheetsPanel.FlowLayoutAdd(buttonSize);
+            sheetsPanel.nextButtonAbsPos = true;
+            sheetsPanel.nextButtonDisabled = (this.currentSelectedSheet == null);
+            sheetsPanel.Button("Open", position, buttonSize);
+
+            sheetsPanel.FlowLayoutEnd();
+        sheetsPanel.ListEnd();
 
         sheetsPanel.End();
-
-        if (true) {
-            return;
-        }
-
-        AffineTransform previous =  g.getTransform();
-        if (spriteSheetToLoad != null) {
-            g.setColor(new Color(0, 0, 0, 155));
-            g.fillRect(0, 0, Game.WINDOW_WIDTH, Game.WINDOW_HEIGHT);
-
-            g.translate(80, 80);
-            Rectangle container = new Rectangle(0, 0, Game.WINDOW_WIDTH-2*80, Game.WINDOW_HEIGHT-2*80);
-            g.setColor(Color.DARK_GRAY);
-            g.fillRect(container.x, container.y, container.width, container.height);
-            
-            g.setColor(Color.WHITE);
-            g.setFont(ED_FONT);
-            g.drawString("Spritesheet: `" + this.spriteSheetToLoad + "`", 0, ED_FONT_SIZE);
-            g.translate(0, ED_FONT_SIZE);
-
-            if (spriteSheetToLoadError != null) {
-                g.setColor(Color.RED);
-                g.drawString("! " + spriteSheetToLoadError, 0, ED_FONT_SIZE);
-                g.setTransform(previous);
-                return;
-            }
-            if (spriteSheetToLoadImage == null) {
-                try {
-                    this.spriteSheetToLoadImage = ImageIO.read(new File(this.spriteSheetToLoad));
-                } catch (IOException e) {
-                    this.spriteSheetToLoadError = "Error loading spritesheet! IOException: " + e.getLocalizedMessage();
-                }
-                if (this.spriteSheetToLoadImage == null) {
-                    this.spriteSheetToLoadError = "Error loading spritesheet!";
-                }
-            } else {
-                container.height -= ED_FONT_SIZE;
-
-                g.setClip(0, 0, container.width, container.height);
-
-                g.translate(container.width/2.0, container.height/2.0);
-                g.translate(this.spriteSheetLoaderScroll.x, this.spriteSheetLoaderScroll.y);
-                g.scale(this.spriteSheetLoaderZoom, this.spriteSheetLoaderZoom);
-
-                double[] transformedMouse = new double[2];
-                g.getTransform().inverseTransform(new double[]{Game.mousePos.x, Game.mousePos.y}, 0, transformedMouse, 0, 1);
-                
-                this.spriteSheetLoaderZoom -= Game.deltaScroll * 0.1;
-                if (Game.IsMouseDown(MouseEvent.BUTTON2)) {
-                    if (this.spriteSheetLoaderMovementStart == null) {
-                        this.spriteSheetLoaderMovementStart = Game.mousePos.scale(1.0);
-                        this.spriteSheetLoaderInitialScroll = this.spriteSheetLoaderScroll.scale(1.0);
-                    }
-                    Vector2 delta = this.spriteSheetLoaderMovementStart.sub(Game.mousePos);
-                    this.spriteSheetLoaderScroll = this.spriteSheetLoaderInitialScroll.sub(delta);
-                } else {
-                    this.spriteSheetLoaderMovementStart = null;
-                    this.spriteSheetLoaderInitialScroll = null;
-                }
-
-                int ix = -this.spriteSheetToLoadImage.getWidth()/2, iy = -this.spriteSheetToLoadImage.getHeight()/2;
-                g.drawImage(this.spriteSheetToLoadImage, ix, iy, null);
-
-                int tileSize = this.spriteSheetLoaderTileSize;
-                int numTilesY = this.spriteSheetToLoadImage.getHeight()/tileSize;
-                int numTilesX = this.spriteSheetToLoadImage.getWidth()/tileSize;
-                for (int y = 0; y < numTilesY; y++) {
-                    for (int x = 0; x < numTilesX; x++) {
-                        g.setColor(new Color(255, 0, 0, 10));
-                        Rectangle rect = new Rectangle(ix+tileSize*x, iy+tileSize*y, tileSize, tileSize);
-                        if (rect.contains(transformedMouse[0], transformedMouse[1])) {
-                            g.setColor(new Color(0, 255, 0, 100));
-                        }
-                        g.drawRect(rect.x, rect.y, rect.width, rect.height);
-                    }
-                }
-            }
-
-            g.setTransform(previous);
+        
+        if (sslVisible) {
+            SpriteSheetLoader(g);
         } else {
-            g.translate(0, Game.WINDOW_HEIGHT - this.height);
-    
-            g.setColor(Color.DARK_GRAY);
-            g.fillRect(0, 0, Game.WIDTH, this.height);
-    
-            int spacing = 6;
-            int layersPanelWidth = (int)(Game.WIDTH * 0.1 + 100.0);
-    
-            int containerWidth = layersPanelWidth;
-            int containerHeight = this.height - 2*spacing;
-            Rectangle container = new Rectangle(0, 0, containerWidth, containerHeight);
-            
-            g.translate(spacing, spacing);
-            AffineTransform prevTrans = g.getTransform();
-            
-            g.setColor(Color.GRAY);
-            g.drawRect(container.x, container.y, container.width, container.height); // Left Panel
-            container.height -= spacing; // Introduce padding
-            g.setClip(container.x, container.y, container.width, container.height); // Clip to left panel
-    
-            scrollLeftPanel += Game.deltaScroll;
-            if (scrollLeftPanel < 0) {
-                scrollLeftPanel = 0;
-            }
-    
-            double lpScroll = -scrollLeftPanel*ED_FONT_SIZE*0.3;
-            g.translate(0, lpScroll);
-            g.translate(spacing/2, spacing/2); // Padding
-    
-            // Update mouse
-            double[] transformedMouse = new double[2];
-            g.getTransform().inverseTransform(new double[]{Game.mousePos.x, Game.mousePos.y}, 0, transformedMouse, 0, 1);
-           
-            containerWidth -= spacing; // Padding
-    
-            g.setFont(ED_FONT);
-            g.setColor(Color.GRAY);
-            g.drawLine(0, ED_FONT_SIZE, containerWidth, ED_FONT_SIZE);
-            g.setColor(Color.WHITE);
-            g.drawString("Layers", 0, ED_FONT_SIZE);
-    
-            Rectangle newLayerButton = new Rectangle(containerWidth - (ED_FONT_SIZE + 5), 0, ED_FONT_SIZE, ED_FONT_SIZE);
-            boolean hoveringNLB = newLayerButton.contains(transformedMouse[0], transformedMouse[1]);
-    
-            g.setColor(hoveringNLB ? BUTTON_HOVERING_COLOR : Color.GRAY);
-            g.fillRect(newLayerButton.x, newLayerButton.y, newLayerButton.width, newLayerButton.height);
-            g.setColor(Color.WHITE);
-            g.drawString("+", newLayerButton.x + ED_FONT_SIZE/4, newLayerButton.y + ED_FONT_SIZE - ED_FONT_SIZE/5);
-    
-            if (hoveringNLB && Game.IsMousePressed(MouseEvent.BUTTON1)) {
-                TileMapLayer newLayer = new TileMapLayer(map);
-                newLayer.name = "Layer " + (++this.layerCount);
-                this.currentLayer = newLayer;
-                this.map.layers.add(newLayer);
-            }
-    
-            // Delete Button
-            newLayerButton.x -= 5 + ED_FONT_SIZE;
-            hoveringNLB = newLayerButton.contains(transformedMouse[0], transformedMouse[1]);
-    
-            g.setColor(hoveringNLB ? BUTTON_HOVERING_COLOR : Color.GRAY);
-            g.fillRect(newLayerButton.x, newLayerButton.y, newLayerButton.width, newLayerButton.height);
-            g.setColor(Color.WHITE);
-            g.drawString("x", newLayerButton.x + ED_FONT_SIZE/4, newLayerButton.y + ED_FONT_SIZE - ED_FONT_SIZE/5);
-            if (hoveringNLB && Game.IsMousePressed(MouseEvent.BUTTON1)) {
-                this.map.layers.remove(this.currentLayer);
-                this.currentLayer = this.map.layers.get(this.map.layers.size()-1);
-            }
-    
-            for (int i = 0; i < map.layers.size(); i++) {
-                TileMapLayer l = map.layers.get(i);
-    
-                Rectangle layerNameButton = new Rectangle(0, 4 + ED_FONT_SIZE + i*ED_FONT_SIZE, containerWidth, ED_FONT_SIZE);
-                boolean hoveringLNB = layerNameButton.contains(transformedMouse[0], transformedMouse[1]);
-    
-                if (l == this.currentLayer) {
-                    g.setColor(Color.GRAY);
-                    g.fillRect(layerNameButton.x, layerNameButton.y, layerNameButton.width, layerNameButton.height);
-                }
-    
-                if (hoveringLNB) {
-                    g.setColor(BUTTON_HOVERING_COLOR);
-                    g.fillRect(layerNameButton.x, layerNameButton.y, layerNameButton.width, layerNameButton.height);
-                }
-    
-                if (hoveringLNB && Game.IsMousePressed(MouseEvent.BUTTON1)) {
-                    currentLayer = l;
-                }
-                if (hoveringLNB && Game.IsKeyDown(KeyEvent.VK_DELETE)) {
-                    map.layers.remove(l);
-                }
-    
-                g.setColor(Color.WHITE);
-                g.drawString(l.name, layerNameButton.x, layerNameButton.y+ED_FONT_SIZE);
-            }
-    
-            g.setTransform(prevTrans);
-            g.translate(container.width + spacing, 0);
-            container.height += spacing;
-    
-            g.setColor(Color.GRAY);
-            g.setClip(0, 0, Game.WINDOW_WIDTH, Game.WINDOW_HEIGHT);
-            g.drawRect(container.x, container.y, container.width, container.height); // Left Panel
-            container.height -= spacing; // Introduce padding
-            g.setClip(container.x, container.y, container.width, container.height); // Clip to left panel
-    
-            g.translate(spacing, spacing);
-    
-            // Update mouse
-            g.getTransform().inverseTransform(new double[]{Game.mousePos.x, Game.mousePos.y}, 0, transformedMouse, 0, 1);
-    
-            g.setColor(Color.WHITE);
-            g.drawString("Sprites", 0, ED_FONT_SIZE);
-    
-            Rectangle importSSB = new Rectangle(container.width - ED_FONT_SIZE - 15, 0, ED_FONT_SIZE, ED_FONT_SIZE);
-            boolean hoveringSSB = importSSB.contains(transformedMouse[0], transformedMouse[1]);
-    
-            g.setColor(hoveringSSB ? BUTTON_HOVERING_COLOR : Color.GRAY);
-            g.fillRect(importSSB.x, importSSB.y, importSSB.width, importSSB.height + 4);
-            g.setColor(Color.WHITE);
-            g.drawString("+", importSSB.x + ED_FONT_SIZE/4, importSSB.y + ED_FONT_SIZE);
-    
-            if (hoveringSSB && Game.IsMousePressed(MouseEvent.BUTTON1)) {
-                // Open the save dialog
-                if (fileChooser == null) {
-                    fileChooser = new JFileChooser("./res");
-                    fileChooser.setVisible(true);
-                    int r = fileChooser.showSaveDialog(null);
-    
-                    if (r == JFileChooser.APPROVE_OPTION) {
-                        File f = fileChooser.getSelectedFile();
-                        this.spriteSheetToLoad = f.getPath();
-                    }
-    
-                    fileChooser = null;
-                }
-            }
-    
-            g.setTransform(previous);
+            this.layers.disabled = false;
+            this.sheetsPanel.disabled = false;
         }
     }
 }
