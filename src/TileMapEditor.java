@@ -757,6 +757,7 @@ class Panel {
                 scrollPixels += deltaScroll * 4.0;
             }
 
+            // TODO: Fix weird effect where scroll bar changes size
             double percentScroll = scrollPixelsNow/maxScroll;
 
             double scrollBarButtonOffset = percentScroll * (this.size.y-scrollBarButtonSizeY);

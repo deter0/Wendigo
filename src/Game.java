@@ -16,11 +16,14 @@ import java.awt.event.*;
 import java.awt.geom.NoninvertibleTransformException;
 import java.awt.*;
 import java.io.*;
+import java.lang.reflect.InvocationTargetException;
 
 public class Game extends JPanel implements Runnable, KeyListener {
     private Thread gameThread; // Thread game is ran on
     private JFrame parentJFrame; // Parent frame passed through constructor
     
+    private double targetFrameTime;
+
     /*  Having keysDownLastFrame and keys down this frame so we can implement Game.isKeyDown
         that can be called at any time, instead of events.
     */
@@ -61,7 +64,7 @@ public class Game extends JPanel implements Runnable, KeyListener {
     // Time stuff
     public static double gameStart = System.currentTimeMillis()/1000.0;
     public static double now() {
-        return System.currentTimeMillis()/1000.0;
+        return (double)System.nanoTime() / (double)1e9 - gameStart;
     }
 
     // Current cursor
@@ -165,7 +168,11 @@ public class Game extends JPanel implements Runnable, KeyListener {
     }
 
     private void DrawFPS(Graphics2D g) {
-        g.setFont(Game.font16);
+        if (TileMapEditor.ED_FONT != null) {
+            g.setFont(TileMapEditor.ED_FONT);
+        } else {
+            g.setFont(Game.font16);
+        }
         
         String text = Long.toString(Math.round(Game.FPS)) + " FPS";
         FontMetrics m = g.getFontMetrics();
@@ -199,22 +206,52 @@ public class Game extends JPanel implements Runnable, KeyListener {
     }
 
     private double lastDraw = Game.now();
+    private double nextDrawDeadline = -Double.MAX_VALUE;
     @Override
     public void paint(Graphics gAbs) { // Override JPanel paint method
-        double deltaDraw = Game.now() - lastDraw;
-        Game.FPS = 1.0/deltaDraw;
+        if (Game.gameRunning == false) this.Close();
+
+        double now = Game.now();
+        double deltaTime = now - this.lastDraw;
+        
+        if (now < nextDrawDeadline) {
+            try {
+                Thread.sleep(0, 100);
+            } catch (IllegalArgumentException | InterruptedException e) {
+                e.printStackTrace();
+            }
+
+            repaint();
+            return;
+        }
+        
+        nextDrawDeadline = now + this.targetFrameTime - this.targetFrameTime/16.0;
+
+        Point mp = this.getMousePosition();
+        if (mp != null)
+            Game.mousePos = new Vector2(mp.x, mp.y);
+
+        Game.WINDOW_WIDTH = this.getWidth();
+        Game.WINDOW_HEIGHT = this.getHeight();
+        
+        Game.WIDTH = Game.WINDOW_WIDTH;
+        Game.HEIGHT = Game.WINDOW_HEIGHT;    
+
+        Game.FPS = 1.0/deltaTime;
         lastDraw = Game.now();
 
-        Game.deltaTime = deltaDraw;
+        System.out.println(FPS);
+
+        Game.deltaTime = deltaTime;
 
         /* Required Update logic */
         Game.deltaScroll = Game.scrollThisFrame - Game.scrollLastFrame;
         Game.scrollLastFrame = Game.scrollThisFrame;
 
         // Update the game
-        Update(deltaDraw);
+        Update(deltaTime);
 
-        super.paint(gAbs);
+        // super.paint(gAbs);
         Graphics2D g = (Graphics2D)gAbs;
 
         // Set good graphic's graphic context to the new graphic's context
@@ -243,6 +280,16 @@ public class Game extends JPanel implements Runnable, KeyListener {
         for (int i = 0; i < Game.keysDown.length; i++) {
             Game.keysDownLastFrame[i] = Game.keysDown[i];
         }
+
+        repaint((int)(this.targetFrameTime*900));
+    }
+
+    public void Close() {
+        System.out.println("[LOG]: Closing window.");
+
+        // Close the window properly
+        this.parentJFrame.dispose();
+        this.parentJFrame.dispatchEvent(new WindowEvent(this.parentJFrame, WindowEvent.WINDOW_CLOSING)); // Call close event
     }
 
     @Override
@@ -250,6 +297,8 @@ public class Game extends JPanel implements Runnable, KeyListener {
         final double refreshRate = GraphicsEnvironment.getLocalGraphicsEnvironment().getDefaultScreenDevice().getDisplayMode().getRefreshRate();
         final double TARGET_FPS = refreshRate; // FPS we're aiming for'
         
+        this.targetFrameTime = 1.0 / TARGET_FPS;
+
         System.out.println("[LOG]: Monitor refresh rate is: " + refreshRate + " hz. Targetting.");
 
         // TODO: Test if `setOpaque(true)` has flickering on other platforms.
@@ -258,42 +307,82 @@ public class Game extends JPanel implements Runnable, KeyListener {
         this.setDoubleBuffered(true);
         
         // Last time
-        double lastTick = System.currentTimeMillis()/1000.0;
+        // double lastTick = System.currentTimeMillis()/1000.0;
         double deltaTime = 0;
 
-        while (Game.gameRunning) { // Loop while game is running
-            deltaTime = Game.now() - lastTick; // Calculate delta
+        repaint();
 
-            // Update mouse position
-            Point mp = this.getMousePosition();
-            if (mp != null)
-                Game.mousePos = new Vector2(mp.x, mp.y);
-                
-                if (deltaTime >= 1.0/TARGET_FPS) { // If we're ready to render a frame render it
-                Game.WINDOW_WIDTH = this.getWidth();
-                Game.WINDOW_HEIGHT = this.getHeight();
-                
-                Game.WIDTH = Game.WINDOW_WIDTH;
-                Game.HEIGHT = Game.WINDOW_HEIGHT;        
-                
-                repaint(); // Tell the panel to call paint
-                
-                lastTick = Game.now(); //Update( Update last tick)
-            } else {
-                try {
-                    Thread.sleep((long)((1.0/TARGET_FPS - deltaTime)*600.0), 0); // Sleep 1ms if we're doing nothing so we don't bog CPU
-                } catch (InterruptedException err) {
-                    System.err.println(err);
-                }
-            }
-        }
+        // while (Game.gameRunning) { // Loop while game is running
+        //     deltaTime = Game.now() - lastTick; // Calculate delta
 
-        System.out.println("[LOG]: Closing window.");
+        //     // Update mouse position
+        //     Point mp = this.getMousePosition();
+        //     if (mp != null)
+        //         Game.mousePos = new Vector2(mp.x, mp.y);
+                
+        //     if (deltaTime >= 1.0/TARGET_FPS/2.0) { // If we're ready to render a frame render it
+        //         // System.out.println(1.0/deltaTime);
 
-        // Close the window properly
-        this.parentJFrame.dispose();
-        this.parentJFrame.dispatchEvent(new WindowEvent(this.parentJFrame, WindowEvent.WINDOW_CLOSING)); // Call close event
+        //         Game.WINDOW_WIDTH = this.getWidth();
+        //         Game.WINDOW_HEIGHT = this.getHeight();
+                
+        //         Game.WIDTH = Game.WINDOW_WIDTH;
+        //         Game.HEIGHT = Game.WINDOW_HEIGHT;        
+
+        //         // repaint(); // Tell the panel to call paint
+                
+        //         lastTick = Game.now(); //Update( Update last tick)
+        //     } else {
+        //         try {
+        //             //Thread.sleep((long)((1.0/TARGET_FPS - deltaTime)*600.0), 0); // Sleep 1ms if we're doing nothing so we don't bog CPU
+        //             Thread.sleep(1);
+        //         } catch (InterruptedException err) {
+        //             System.err.println(err);
+        //         }
+        //     }
+        // }
     }
+
+
+    // @Override
+    // public void run() {
+    //     final double refreshRate = GraphicsEnvironment.getLocalGraphicsEnvironment()
+    //             .getDefaultScreenDevice().getDisplayMode().getRefreshRate();
+    //     final double TARGET_FPS = (refreshRate > 0) ? refreshRate : 60.0;
+    //     final double frameDuration = 1.0 / TARGET_FPS;
+
+    //     System.out.println("[LOG]: Monitor refresh rate is: " + refreshRate + " hz. Targeting " + TARGET_FPS + " FPS.");
+    //     System.out.println("[LOG] Optimized drawing enabled: " + isOptimizedDrawingEnabled());
+
+    //     this.setDoubleBuffered(true);
+
+    //     double lastTick = System.nanoTime() / 1e9;
+    //     double nextFrameTime = lastTick + frameDuration;
+
+    //     while (Game.gameRunning) {
+    //         double now = System.nanoTime() / 1e9;
+    //         if (now >= nextFrameTime) {
+    //             // System.out.println("haha");
+    //             Game.WINDOW_WIDTH = this.getWidth();
+    //             Game.WINDOW_HEIGHT = this.getHeight();
+
+    //             paintImmediately(new Rectangle(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT));
+
+    //             lastTick = now;
+    //             nextFrameTime = now+frameDuration;
+    //         } else {
+    //             try {
+    //                 Thread.sleep((long) ((nextFrameTime - now) * 1000));
+    //             } catch (InterruptedException err) {
+    //                 System.err.println(err);
+    //             }
+    //         }
+    //     }
+
+    //     System.out.println("[LOG]: Closing window.");
+    //     this.parentJFrame.dispose();
+    //     this.parentJFrame.dispatchEvent(new WindowEvent(this.parentJFrame, WindowEvent.WINDOW_CLOSING));
+    // }
 
     // Function to set the games fonts, if we failed to load fall back
     public static void SetFonts(String fontName) {
