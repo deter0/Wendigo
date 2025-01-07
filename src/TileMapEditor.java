@@ -19,12 +19,75 @@ class SpriteSheet {
     protected boolean tilesPurged = false;
 
     protected BufferedImage image;
+    protected VolatileImage GPUImage;
 
     ArrayList<Tile> tiles;
+
+    public BufferedImage GetCPUImage() {
+        return this.image;
+    }
+
+    public Image GetImage(Graphics2D g) {
+        if (this.VolatileImageNeedsCreation(g)) {
+            // System.out.println("[LOG]: Recreating volatile image.");
+            // this.CreateVolatileImage();
+        }
+        
+        if (this.GPUImage != null) {
+            return this.GPUImage;
+        }
+
+        return (Image)this.image;
+    }
+
+    public void CreateVolatileImage() {
+        GraphicsConfiguration gc = GraphicsEnvironment.getLocalGraphicsEnvironment()
+                                                    .getDefaultScreenDevice()
+                                                    .getDefaultConfiguration();
+    
+        // Create a VolatileImage with the same dimensions as the source image
+        VolatileImage vImage = gc.createCompatibleVolatileImage(this.image.getWidth(), this.image.getHeight(), Transparency.TRANSLUCENT);
+    
+        if (vImage == null) {
+            System.err.println("[ERROR]: Error creating volatile image (GPU Image) for sprite sheet: `" + this.name + "`. Expect performance degradations.");
+            return;
+        }
+    
+        System.out.println("[LOG]: Created volatile image (GPU Image) for sprite sheet: `" + this.name + "` " + this.image.getWidth() + "x" + this.image.getHeight());
+    
+        // Obtain a Graphics2D context for the VolatileImage
+        Graphics2D vg = (Graphics2D) vImage.createGraphics();
+    
+        // Use SrcOver composite to blend the images properly
+        vg.setComposite(AlphaComposite.SrcOver); 
+        
+        // Optional: You can clear the image with a transparent color (or black if you prefer)
+        vg.setColor(Color.black); // If you want a black background, use this line.
+        vg.fillRect(0, 0, vImage.getWidth(), vImage.getHeight());
+    
+        // Draw the original image onto the VolatileImage
+        vg.drawImage(this.image, 0, 0, null);
+    
+        vg.dispose();
+    
+        // Store the resulting VolatileImage
+
+        // this.GPUImage = vImage;
+        // this.image = vImage.getSnapshot();
+    }    
+
+    public boolean VolatileImageNeedsCreation(Graphics2D g) {
+        if (this.GPUImage == null || this.GPUImage.contentsLost() || this.GPUImage.validate(g.getDeviceConfiguration()) == VolatileImage.IMAGE_INCOMPATIBLE) {
+            return true;
+        }
+
+        return false;
+    }
 
     private void Init(BufferedImage image, int tileSize) {
         this.tileSize = tileSize;
         this.image = image;
+
         int imageWidth = this.image.getWidth();
         int imageHeight = this.image.getHeight();
 
@@ -32,7 +95,8 @@ class SpriteSheet {
         this.numTilesY = imageHeight / tileSize;
 
         this.UpdateTilesSize();
-
+        // this.CreateVolatileImage();
+    
         if (imageWidth % tileSize != 0 || imageHeight % tileSize != 0) {
             System.err.println("[WARN]: Atlas tile size not equally divisible by it's width or height.");
         }
@@ -108,7 +172,7 @@ class Tile {
         int tileSize = this.textureSheet.tileSize;
         int sx = this.textureIndex % this.textureSheet.numTilesX;
         int sy = this.textureIndex / this.textureSheet.numTilesX;
-        BufferedImage image = this.textureSheet.image;
+        BufferedImage image = this.textureSheet.GetCPUImage();
     
         if (image == null)
             return true;
@@ -144,7 +208,7 @@ class Tile {
         int sx = this.textureIndex % this.textureSheet.numTilesX;
         int sy = this.textureIndex / this.textureSheet.numTilesX;
 
-        g.drawImage(this.textureSheet.image,
+        g.drawImage(this.textureSheet.GetImage(g),
                     (int)x, (int)y, (int)(x+(w * this.w)), (int)(y+(h * this.h)),
                     sx*tileSize, sy*tileSize, (sx*tileSize)+(tileSize*this.w), (sy*tileSize)+(tileSize*this.h),
                     GG.COLOR_OPAQUE, null);
@@ -999,7 +1063,7 @@ class TileMapEditor {
         this.sheetsPanel.disabled = true;
 
         if (this.sslSheet != null) {
-            this.sslImage = this.sslSheet.image;
+            this.sslImage = this.sslSheet.GetCPUImage();
             this.sslImgPath = null;
         }
 
@@ -1007,7 +1071,17 @@ class TileMapEditor {
             try {
                 BufferedImage loadedImage = ImageIO.read(new File(this.sslImgPath));
                 if (loadedImage != null) {
-                    this.sslImage = loadedImage;
+                    // BufferedImage compatibleImage = GraphicsEnvironment
+                    //         .getLocalGraphicsEnvironment()
+                    //         .getDefaultScreenDevice()
+                    //         .getDefaultConfiguration()
+                    //         .createCompatibleImage(loadedImage.getWidth(), loadedImage.getHeight(), Transparency.BITMASK);
+
+                    // Graphics2D cig = compatibleImage.createGraphics();
+                    // cig.drawImage(loadedImage, 0, 0, null);
+                    // cig.dispose();
+
+                    this.sslImage = loadedImage;//loadedImage;
                     this.sslError = null;
                 } else {
                     throw new Exception("Tried to load image but got NULL.");
@@ -1018,7 +1092,7 @@ class TileMapEditor {
         }
 
         if (this.sslSheet == null && this.sslImage != null) {
-            this.sslSheet = new SpriteSheet(this.sslImage, 16);
+            this.sslSheet = new SpriteSheet((BufferedImage)this.sslImage, 16);
             this.sslSheet.name = new File(this.sslImgPath).getName();
         }
         
@@ -1118,7 +1192,7 @@ class TileMapEditor {
             g.fillRect(0, 0, Game.WINDOW_WIDTH, Game.WINDOW_HEIGHT);
 
             AffineTransform prevTrans = g.getTransform();
-            Vector2 imagePos = new Vector2(-this.sslImage.getWidth() / 2.0, -this.sslImage.getHeight() / 2.0);
+            Vector2 imagePos = new Vector2(-this.sslImage.getWidth(null) / 2.0, -this.sslImage.getHeight(null) / 2.0);
             boolean hovering = Vector2.AABBContainsPoint(ssEditor.position, ssEditor.size, Game.mousePos);
 
             // Update smooth zoom
@@ -1470,7 +1544,7 @@ class TileMapEditor {
                 g.drawImage(
                     sheet.image,
                     drawX, drawY, drawX + drawWidth, drawY + drawHeight, // Destination rectangle
-                    0, 0, sheet.image.getWidth(null), sheet.image.getHeight(null),       // Source rectangle
+                    0, 0, sheet.GetImage(g).getWidth(null), sheet.GetImage(g).getHeight(null),       // Source rectangle
                     null                                                // Image observer
                 );
 

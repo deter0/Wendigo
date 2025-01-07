@@ -9,7 +9,7 @@ import javax.swing.*;
 import java.awt.*;
 
 public class GameFrame extends JFrame {
-    private Game game;
+    public static Game _Game;
     public GameFrame() {
         // Configuration
         final int init_width = 1600;
@@ -23,9 +23,9 @@ public class GameFrame extends JFrame {
         System.out.println("[LOG]: Creating window. Initial size: " + init_width + "x" + init_height
                             + ", minimum size: " + min_width + "x" + min_height + ", resizeable = " + resizable);
         
-        game = new Game(this);
+        _Game = new Game(this);
 
-        this.add(game);
+        this.add(_Game);
         this.setTitle("Wendigo");
 
         // Set properties

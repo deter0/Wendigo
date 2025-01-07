@@ -240,8 +240,6 @@ public class Game extends JPanel implements Runnable, KeyListener {
         Game.FPS = 1.0/deltaTime;
         lastDraw = Game.now();
 
-        System.out.println(FPS);
-
         Game.deltaTime = deltaTime;
 
         /* Required Update logic */
@@ -259,6 +257,8 @@ public class Game extends JPanel implements Runnable, KeyListener {
 
 
         // Set anti-aliasing
+        g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_SPEED);
+
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
                            RenderingHints.VALUE_ANTIALIAS_ON); 
 
@@ -280,6 +280,8 @@ public class Game extends JPanel implements Runnable, KeyListener {
         for (int i = 0; i < Game.keysDown.length; i++) {
             Game.keysDownLastFrame[i] = Game.keysDown[i];
         }
+
+        g.dispose();
 
         repaint((int)(this.targetFrameTime*900));
     }
@@ -304,7 +306,7 @@ public class Game extends JPanel implements Runnable, KeyListener {
         // TODO: Test if `setOpaque(true)` has flickering on other platforms.
         // Confirmed flickering on: Plasma/ Wayland
         // this.setOpaque(false);
-        this.setDoubleBuffered(true);
+        // this.setDoubleBuffered(true);
         
         // Last time
         // double lastTick = System.currentTimeMillis()/1000.0;
