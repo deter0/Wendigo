@@ -16,7 +16,7 @@ public class Player extends GameObject {
     private int frameHeight;
     private double dx = 0;
     private double dy = 0;
-    private boolean reflect;
+    public boolean reflect;
     private int speed = 500;
     private long lastFrameTime = 0;
     private final int FRAME_DELAY = 100; // 100ms between frames
@@ -65,15 +65,6 @@ public class Player extends GameObject {
                 transform.scale(2.5, 2.5); // Scale up
                 transform.scale(afterimage.reflect ? -1.0 : 1.0, 1.0);
                 transform.translate(-frameWidth/2.0, -frameHeight/2.0);
-                // if (afterimage.reflect) {
-
-                //     transform.translate(afterimage.x + frameWidth, afterimage.y);
-                //     transform.scale(-2.5, 2.5);
-                //     transform.translate(-frameWidth, 0);
-                // } else {
-                //     transform.translate(afterimage.x, afterimage.y);
-                //     transform.scale(2.5, 2.5);
-                // }
                 g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
                 g.drawImage(afterimage.image, transform, null);
             }
@@ -99,7 +90,7 @@ public class Player extends GameObject {
             return;
         }
         if (currentFrame < 0 || currentFrame >= currentFrames.length) {
-            System.err.println("Error: CurrentFrame index is out of bounds! Index: " + currentFrame);
+            //System.err.println("Error: CurrentFrame index is out of bounds! Index: " + currentFrame);
             currentFrame = 0; // Reset to avoid crash
         }
         if (currentFrames[currentFrame] == null) {
