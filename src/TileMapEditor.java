@@ -153,6 +153,14 @@ class Tile {
     public int w = 1;
     public int h = 1;
 
+    public Tile Clone() {
+        Tile t = new Tile(this.x, this.y, this.textureSheet, this.textureIndex);
+        t.w = this.w;
+        t.h = this.h;
+
+        return t;
+    }
+
     public Tile(int x, int y, SpriteSheet sheet, int textureIndex) {
         this.x = x;
         this.y = y;
@@ -169,6 +177,8 @@ class Tile {
     }
 
     public boolean IsBlank() {
+        if (this.textureIndex == -1) return false;
+
         int tileSize = this.textureSheet.tileSize;
         int sx = this.textureIndex % this.textureSheet.numTilesX;
         int sy = this.textureIndex / this.textureSheet.numTilesX;
@@ -204,6 +214,8 @@ class Tile {
     }
 
     public void Draw(Graphics2D g, double x, double y, double w, double h) {
+        if (this.textureIndex == -1) return;
+
         int tileSize = this.textureSheet.tileSize;
         int sx = this.textureIndex % this.textureSheet.numTilesX;
         int sy = this.textureIndex / this.textureSheet.numTilesX;
@@ -224,9 +236,30 @@ class TileMapLayer {
         this.parentMap = map;
         this.tiles = new ArrayList<>();
 
-        for (int i = 0; i < map.width*map.height; i++) {
-            this.tiles.add(null); // Add all blank tiles
+        for (int y = 0; y < map.height; y++) {
+            for (int x = 0; x < map.width; x++) {
+                this.tiles.add(new Tile(x, y, null, -1)); // Add all blank tiles
+            }
         }
+    }
+
+    public void SetTile(int x, int y, Tile t) {
+        System.out.println("[LOG]: Setting tile at " + x + ", " + y);
+        int tileIndex = y * this.parentMap.width + x;
+
+        if (tileIndex < 0) return;
+        if (tileIndex > this.tiles.size()) return;
+
+        this.tiles.set(tileIndex, null);
+    }
+
+    public Tile GetTile(int x, int y) {
+        int tileIndex = y * this.parentMap.width + x;
+
+        if (tileIndex < 0) return null;
+        if (tileIndex > this.tiles.size()) return null;
+
+        return this.tiles.get(tileIndex);
     }
 
     public void SetTile(int x, int y, SpriteSheet sheet, int textureIndex) {
@@ -285,32 +318,58 @@ class TileMap {
         return sheet;
     }
 
+    public Tile GetTileAtPosition(Vector2 position, TileMapLayer layerMask) {
+        position = position.scale(1.0/this.scale);
+
+        int x = (int)Math.floor(position.x);
+        int y = (int)Math.floor(position.y);
+
+        if (x < 0) return null;
+        if (x > this.width) return null;
+        if (y < 0) return null;
+        if (y > this.height) return null;
+
+        return layerMask.GetTile(x, y);
+    }
+
+    public void SetTileAtPosition(Vector2 position, Tile t, TileMapLayer layerMask) {
+        position = position.scale(1.0/this.scale);
+
+        int x = (int)Math.floor(position.x);
+        int y = (int)Math.floor(position.y);
+
+        if (x < 0) return;
+        if (x > this.width) return;
+        if (y < 0) return;
+        if (y > this.height) return;
+
+        layerMask.SetTile(x, y, t);
+    } 
+
     static Color DEBUG_GRID_COLOR = new Color(0x4b0b61);
     public void Draw(Graphics2D g) {
         int drewCount = 0;
-        for (int y = 0; y < this.height; y++) {
-            double realY = y * scale;
-            if (realY > Game.HEIGHT) break; // Off bounds vertically stop rendering
-            if ((realY+scale) < 0) continue; // Not in bounds yet, continue till we are
+        for (int i = 0; i < this.layers.size(); i++) {
+            TileMapLayer layer = this.layers.get(i);
+            for (Tile t : layer.tiles) {
+                if (t == null) continue;
+                if (t.textureIndex == -1) continue;
 
-            for (int x = 0; x < this.width; x++) {
-                int index = y * this.width + x;
-                double realX = x * scale;
+                double realY = t.y * scale;
+                if (realY > Game.HEIGHT) continue; // Off bounds vertically stop rendering
+                if ((realY+scale) < 0) continue; // Not in bounds yet, continue till we are
 
-                if (realX > Game.WIDTH) break; // Out of bounds horizontally stop rendering
+                double realX = t.x * scale;
+                if (realX > Game.WIDTH) continue; // Out of bounds horizontally stop rendering
                 if ((realX+scale) < 0) continue; // Not in bounds yet, continue until
+
+                double sizeX = scale * t.w, sizeY = scale * t.h;
 
                 drewCount++;
                 g.setColor(DEBUG_GRID_COLOR);
-                GG.drawRect(x * scale, y * scale, scale, scale);
+                GG.drawRect(realX, realY, sizeX, sizeY);
 
-                for (int i = 0; i < this.layers.size(); i++) {
-                    TileMapLayer layer = this.layers.get(i);
-                    Tile t = layer.tiles.get(index);
-                    if (t != null) {
-                        t.Draw(g, (int)realX, (int)realY, (int)scale, (int)scale);
-                    }
-                }
+                t.Draw(g, (int)realX, (int)realY, (int)sizeX, (int)sizeY);
             }
         }
 
@@ -752,10 +811,10 @@ class Panel {
         this.currentListTopLeft = position.scale(1.0);
 
         if (size.x >= -1.0 && size.x <= 1.0) {
-            size.x = this.size.x * size.x;
+            size.x = (this.size.x - 2*PADDING) * size.x;
         }
         if (size.y >= -1.0 && size.y <= 1.0) {
-            size.y = this.remainingVerticalSpace() * size.y;
+            size.y = (this.remainingVerticalSpace() - PADDING) * size.y;
         }
 
         if (size.x == 0) {
@@ -869,8 +928,7 @@ class Panel {
         return size;
     }
 
-    protected Vector2 lastButtonSize;
-    public boolean Button(String text, Vector2 position, Vector2 size) {
+    public Rectangle CalculateButtonDims(String text, Vector2 position, Vector2 size) {
         if (!this.nextButtonAbsPos) {
             if (position.x <= 1.0) {
                 position.x = position.x * this.size.x;
@@ -902,6 +960,23 @@ class Panel {
             size.y = size.y * this.remainingVerticalSpace();
         }
 
+        return new Rectangle((int)position.x, (int)position.y, (int)size.x, (int)size.y);
+    }
+
+    protected Vector2 lastButtonSize;
+    public boolean Button(String text, Vector2 position, Vector2 size) {
+        Rectangle dims = CalculateButtonDims(text, position, size);
+
+        position.x = dims.x;
+        position.y = dims.y;
+        size.x = dims.width;
+        size.y = dims.height;
+
+        g.setFont(TileMapEditor.ED_FONT);
+
+        FontMetrics m = g.getFontMetrics();
+        int textWidth = m.stringWidth(text);
+    
         boolean inactive = this.nextButtonDisabled;
         boolean highlight = this.nextButtonHighlight;
         boolean hovering = !this.disabled && (!inactive && Vector2.AABBContainsPoint(position, size, Game.mousePos));
@@ -962,6 +1037,7 @@ class TileMapEditor {
     private BufferedImage sslImage = null;
     private boolean sslIsNew = true;
     private String sslImgPath = null;
+    private boolean sslLeftPanelOpen = true;
     
     private double sslZoomTarget = 3.0;
     private double sslZoom = 3.0;
@@ -976,6 +1052,7 @@ class TileMapEditor {
         this.sslImgPath = null;
         this.sslImage = null;
         this.sslError = null;
+        this.sslLeftPanelOpen = true;
         this.sslSelection = new ArrayList<>();
         this.sslSheet = null;
         this.sslSelectionMouseStart = null;
@@ -1058,13 +1135,24 @@ class TileMapEditor {
         }
     }
     
+    Panel ssEditor = new Panel();
+
     private void SpriteSheetLoader(Graphics2D g) {
-        this.layers.disabled = true;
-        this.sheetsPanel.disabled = true;
+        if (this.sslLeftPanelOpen) {
+            this.layers.disabled = true;
+            this.sheetsPanel.disabled = true;
+        } else {
+            this.layers.disabled = false;
+            this.sheetsPanel.disabled = false;    
+        }
 
         if (this.sslSheet != null) {
             this.sslImage = this.sslSheet.GetCPUImage();
             this.sslImgPath = null;
+        }
+
+        if (Game.IsKeyPressed(KeyEvent.VK_H)) {
+            this.sslLeftPanelOpen = !this.sslLeftPanelOpen;
         }
 
         if (this.sslImgPath != null) {
@@ -1097,10 +1185,9 @@ class TileMapEditor {
         }
         
         final double ssEditorPadding = 40.;
-        Panel ssEditor = new Panel();
         ssEditor.Begin(g, new Vector2(ssEditorPadding), new Vector2(Game.WINDOW_WIDTH-2*ssEditorPadding, Game.WINDOW_HEIGHT-2*ssEditorPadding));
 
-        ssEditor.Name("Sprite Sheet Editor \"" + this.sslImgPath + "\"");
+        ssEditor.Name("Sprite Sheet Editor \"" + this.sslSheet!=null ? this.sslSheet.name : "None" + "\"");
         if (ssEditor.CloseButton()) {
             this.sslReset();
             return;
@@ -1112,72 +1199,75 @@ class TileMapEditor {
         Vector2 prevSize = ssEditor.size.scale(1.0);
 
         if (this.sslError == null && this.sslImage != null && this.sslSheet != null) {
-            Vector2 leftCSize = ssEditor.ListBegin("SSEdLeftC", new Vector2(), new Vector2(0.33, -40));
-                ssEditor.size.x -= 2*Panel.PADDING;
-                ssEditor.size.y -= Panel.PADDING;
-
-                ssEditor.EntryBegin("Sprite Sheet Properties");
-                ssEditor.EntryEnd();
-
-                ssEditor.ListBegin("SSEditorProperties", new Vector2(), new Vector2(1.0, 0.5));
-                    ssEditor.EntryBegin("Tile Size: ");
-                    
-                    if (ssEditor.EntryButton("Update & Reset")) {
-                        this.sslSheet.UpdateTilesSize();
-                    }
-                    this.sslSheet.tileSize = (int)ssEditor.EntrySlider(this.sslSheet.tileSize, 2, 128);
-
+            Vector2 leftCSize = new Vector2();
+            if (this.sslLeftPanelOpen) {
+                leftCSize = ssEditor.ListBegin("SSEdLeftC", new Vector2(), new Vector2(0.33, -40));
+                    ssEditor.size.x -= 2*Panel.PADDING;
+                    ssEditor.size.y -= Panel.PADDING;
+    
+                    ssEditor.EntryBegin("Sprite Sheet Properties");
                     ssEditor.EntryEnd();
-
-                    ssEditor.EntryBegin("Grid Visibiltiy: ");
-                    if (ssEditor.EntryButton("Toggle")) {
-                        this.sslGridVisible = !this.sslGridVisible;
-                    }
+    
+                    ssEditor.ListBegin("SSEditorProperties", new Vector2(), new Vector2(1.0, 0.5));
+                        ssEditor.EntryBegin("Tile Size: ");
+                        
+                        if (ssEditor.EntryButton("Update & Reset")) {
+                            this.sslSheet.UpdateTilesSize();
+                        }
+                        this.sslSheet.tileSize = (int)ssEditor.EntrySlider(this.sslSheet.tileSize, 2, 128);
+    
+                        ssEditor.EntryEnd();
+    
+                        ssEditor.EntryBegin("Grid Visibiltiy: ");
+                        if (ssEditor.EntryButton("Toggle")) {
+                            this.sslGridVisible = !this.sslGridVisible;
+                        }
+                        ssEditor.EntryEnd();
+    
+                        ssEditor.EntryBegin("Auto Purge: ");
+                        ssEditor.nextButtonDisabled = this.sslSheet.tilesPurged;
+                        if (ssEditor.EntryButton("Purge Blank Tiles")) {
+                            this.sslSheet.PurgeBlankTiles();
+                        }
+                        ssEditor.EntryEnd();
+    
+                        ssEditor.EntryBegin("Group Selection: ");
+                        ssEditor.nextButtonDisabled = this.sslSelection.size() < 2;
+                        if (ssEditor.EntryButton("Group")) {
+                            this.SSLGroupSelection();
+                        }
+    
+                        ssEditor.nextButtonDisabled = this.sslSelection.size() == 1 && !this.sslSelection.get(0).IsCompoundTile();
+                        if (ssEditor.EntryButton("Ungroup")) {
+                            this.SSLUnGroupSelection();
+                        }
+    
+                        ssEditor.EntryEnd();
+                    ssEditor.ListEnd();
+    
+                    ssEditor.EntryBegin("Tile Properties");
                     ssEditor.EntryEnd();
-
-                    ssEditor.EntryBegin("Auto Purge: ");
-                    ssEditor.nextButtonDisabled = this.sslSheet.tilesPurged;
-                    if (ssEditor.EntryButton("Purge Blank Tiles")) {
-                        this.sslSheet.PurgeBlankTiles();
+    
+                    ssEditor.ListBegin("SSTileProperties", new Vector2(), new Vector2(1.0, 1.0));
+                    ssEditor.ListEnd();
+    
+                    if (ssEditor.Button("Cancel", new Vector2(Panel.PADDING, 0), new Vector2(0, 40))) {
+                        this.sslReset();
+                        return;
                     }
-                    ssEditor.EntryEnd();
-
-                    ssEditor.EntryBegin("Group Selection: ");
-                    ssEditor.nextButtonDisabled = this.sslSelection.size() < 2;
-                    if (ssEditor.EntryButton("Group")) {
-                        this.SSLGroupSelection();
+    
+                    if (ssEditor.Button(this.sslIsNew ? "Create Sheet" : "Save Sheet", new Vector2(ssEditor.lastButtonSize.x + 4*Panel.PADDING, 0), new Vector2(0, 40))) {
+                        if (this.sslIsNew) {
+                            this.map.ownedSheets.add(this.sslSheet);
+                        }
+    
+                        System.out.println("[LOG]: Added sprite sheet: `" + this.sslSheet.name + "` to map.");
+                        this.sslReset();
+    
+                        return;
                     }
-
-                    ssEditor.nextButtonDisabled = this.sslSelection.size() == 1 && !this.sslSelection.get(0).IsCompoundTile();
-                    if (ssEditor.EntryButton("Ungroup")) {
-                        this.SSLUnGroupSelection();
-                    }
-
-                    ssEditor.EntryEnd();
                 ssEditor.ListEnd();
-
-                ssEditor.EntryBegin("Tile Properties");
-                ssEditor.EntryEnd();
-
-                ssEditor.ListBegin("SSTileProperties", new Vector2(), new Vector2(1.0, 1.0));
-                ssEditor.ListEnd();
-
-                if (ssEditor.Button("Cancel", new Vector2(Panel.PADDING, 0), new Vector2(0, 40))) {
-                    this.sslReset();
-                    return;
-                }
-
-                if (ssEditor.Button(this.sslIsNew ? "Create Sheet" : "Save Sheet", new Vector2(ssEditor.lastButtonSize.x + 4*Panel.PADDING, 0), new Vector2(0, 40))) {
-                    if (this.sslIsNew) {
-                        this.map.ownedSheets.add(this.sslSheet);
-                    }
-
-                    System.out.println("[LOG]: Added sprite sheet: `" + this.sslSheet.name + "` to map.");
-                    this.sslReset();
-
-                    return;
-                }
-            ssEditor.ListEnd();
+            }
 
 
             prevPosition.x += leftCSize.x + Panel.PADDING;
@@ -1221,7 +1311,7 @@ class TileMapEditor {
                 this.sslZoomTarget -= Game.deltaScroll * 0.06;
 
                 // Handle panning (mouse drag with middle button)
-                if (Game.IsMousePressed(MouseEvent.BUTTON2) && this.sslMovMouseStart == null) {
+                if (Game.IsMousePressed(MouseEvent.BUTTON3) && this.sslMovMouseStart == null) {
                     this.sslMovMouseStart = Game.mousePos.scale(1.0);
                     this.sslMovInitialScroll = this.sslScroll.scale(1.0);
                 }
@@ -1232,7 +1322,7 @@ class TileMapEditor {
                     Game.currentCursor = Cursor.getPredefinedCursor(Cursor.MOVE_CURSOR);
                 }
 
-                if (Game.IsMouseReleased(MouseEvent.BUTTON2)) {
+                if (Game.IsMouseReleased(MouseEvent.BUTTON3)) {
                     this.sslMovMouseStart = null;
                 }
 
@@ -1351,7 +1441,6 @@ class TileMapEditor {
     private Vector2 sslMovMouseStart = null;
     private Vector2 sslMovInitialScroll = null;
 
-
     private int layerCount = 1;
 
     public TileMapEditor(TileMap m) {
@@ -1379,9 +1468,50 @@ class TileMapEditor {
     
     Panel sheetsPanel = new Panel();
     Panel layers = new Panel();
+    Panel tools = new Panel();
+
+    
+    String[] toolButtons = {"Paint", "Erase", "Fill", "Urthera"};
+    String currentTool = toolButtons[0];
 
     public void Draw(Graphics2D g) throws NoninvertibleTransformException {
         Panel.context = "Editor";
+
+        tools.Begin(g, new Vector2(400, 600), new Vector2(400, 100));
+        tools.Name("Tools");
+
+        if (this.map != null && this.currentLayer != null && Game.IsMousePressed(MouseEvent.BUTTON1)) {
+            
+            if (this.sslSelection.size() > 0) {
+                this.map.SetTileAtPosition(Game.mousePos, this.sslSelection.get(0).Clone(), this.currentLayer);
+                
+                // System.out.println(t.x + ", " + t.y);
+                
+                // this.currentLayer.SetTile(t.x, t.y, this.sslSelection.get(0).Clone());
+            }
+        }
+
+        tools.ListBegin("Tools", new Vector2(), new Vector2(1.0, 1.0));
+            tools.FlowLayoutBegin();
+
+            for (String tool : toolButtons) {
+                String text = tool;
+
+                Rectangle buttonDims = tools.CalculateButtonDims(text, new Vector2(), new Vector2());
+                Vector2 buttonPosition = tools.FlowLayoutAdd(new Vector2(buttonDims.width, buttonDims.height));
+                
+                tools.nextButtonHighlight = tool == this.currentTool;
+                tools.nextButtonAbsPos = true;
+                if (tools.Button(text, buttonPosition, new Vector2(buttonDims.width, buttonDims.height))) {
+                    // Its been clicked
+                    this.currentTool = tool;
+                }
+            }
+
+            tools.FlowLayoutEnd();
+        tools.ListEnd();
+
+        tools.End();
 
         layers.Begin(g, new Vector2(400, 40), new Vector2(300, 300));
         
@@ -1584,8 +1714,14 @@ class TileMapEditor {
 
             position = sheetsPanel.FlowLayoutAdd(buttonSize);
             sheetsPanel.nextButtonAbsPos = true;
-            sheetsPanel.nextButtonDisabled = (this.currentSelectedSheet == null);
-            sheetsPanel.Button("Open", position, buttonSize);
+            sheetsPanel.nextButtonDisabled = (this.currentSelectedSheet == null || this.sslVisible == true);
+            if (sheetsPanel.Button("Open", position, buttonSize)) {
+                this.sslReset();
+                this.sslIsNew = false;
+                this.sslSheet = this.currentSelectedSheet;
+                this.sslLeftPanelOpen = false;
+                this.sslVisible = true;
+            }
 
             sheetsPanel.FlowLayoutEnd();
         sheetsPanel.ListEnd();
