@@ -1477,7 +1477,7 @@ class TileMapEditor {
     public void Draw(Graphics2D g) throws NoninvertibleTransformException {
         Panel.context = "Editor";
 
-        tools.Begin(g, new Vector2(400, 600), new Vector2(400, 100));
+        tools.Begin(g, new Vector2(900, 400), new Vector2(400, 100));
         tools.Name("Tools");
 
         if (this.map != null && this.currentLayer != null && Game.IsMousePressed(MouseEvent.BUTTON1)) {
@@ -1513,7 +1513,7 @@ class TileMapEditor {
 
         tools.End();
 
-        layers.Begin(g, new Vector2(400, 40), new Vector2(300, 300));
+        layers.Begin(g, new Vector2(1100, 700), new Vector2(300, 300));
         
         layers.Name("Layers");
         
@@ -1570,7 +1570,7 @@ class TileMapEditor {
         layers.End();
             
             
-        sheetsPanel.Begin(g, new Vector2(100, 40), new Vector2(300, 300));
+        sheetsPanel.Begin(g, new Vector2(1100, 930), new Vector2(300, 300));
         sheetsPanel.Name("Sprite Sheets");
             
         sheetsPanel.EntryBegin("Sheets");
