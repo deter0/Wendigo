@@ -75,6 +75,7 @@ public class Game extends JPanel implements Runnable, KeyListener {
 
     // Initialize the player
     public static Player player = new Player(100, 100, 0);
+    public Weapon gun = new Weapon(1000, 10, 10, player);
 
     // Load test map
     TileMap testMap;
@@ -162,7 +163,8 @@ public class Game extends JPanel implements Runnable, KeyListener {
     }
 
     public void Update(double deltaTime) {
-        Game.player.Update(deltaTime);
+        player.Update(deltaTime);
+        gun.Update(deltaTime);
         editor.Update(deltaTime);
         // System.out.println("Game tick! At " + 1.0/deltaTime + "TPS");
     }
@@ -187,6 +189,8 @@ public class Game extends JPanel implements Runnable, KeyListener {
 
         //draw player obj
         player.Draw(g);
+        //draw the weapon projectiles
+        gun.Draw(g);
         
         try {
             this.editor.Draw(g);
