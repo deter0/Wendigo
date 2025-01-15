@@ -578,7 +578,7 @@ class TileMapEditor {
                         roundedToTileMousePos.x = Math.floor(roundedToTileMousePos.x);
                         roundedToTileMousePos.y = Math.floor(roundedToTileMousePos.y);
                         
-                        roundedToTileMousePos = thias.map.LocalToWorldVectorPositional(roundedToTileMousePos).add(tileSize.scale(0.5));
+                        roundedToTileMousePos = this.map.LocalToWorldVectorPositional(roundedToTileMousePos).add(tileSize.scale(0.5));
                         
                         Vector2 tileCentre = tilePosition.add(tileSize.scale(0.5));
                         double distance = tileCentre.distance(roundedToTileMousePos);

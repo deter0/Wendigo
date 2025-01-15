@@ -705,9 +705,9 @@ class TileMap {
         try {
             File mapF = new File(filePath);
             if (mapF.createNewFile()) {
-                System.out.println("[LOG]: Map file created: " + mapF.getAbsolutePath());
+                System.out.println("[LOG]: Map file created: " + mapF.getPath());
             } else {
-                System.out.println("[LOG]: Map file already exists: `" + mapF.getAbsolutePath() + "`. Overwriting.");
+                System.out.println("[LOG]: Map file already exists: `" + mapF.getPath() + "`. Overwriting.");
             }
 
             FileWriter fw = new FileWriter(mapF);

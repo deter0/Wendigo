@@ -39,6 +39,14 @@ public class GG {
     public static <N extends Number> void fillRoundRect(N x1, N y1, N x2, N y2, N arcW, N arcH) {
         g.fillRoundRect(x1.intValue(), y1.intValue(), x2.intValue(), y2.intValue(), arcW.intValue(), arcH.intValue());
     }
+    
+    public static void fillRect(Rectangle rect) {
+        GG.fillRect(rect.x, rect.y, rect.width, rect.height);
+    }
+    
+    public static void drawRect(Rectangle rect) {
+        GG.fillRect(rect.x, rect.y, rect.width, rect.height);
+    }
 
     public static void fillRect(Vector2 position, Vector2 size) {
         GG.fillRect(position.x, position.y, size.x, size.y);

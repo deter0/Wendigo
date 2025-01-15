@@ -21,6 +21,7 @@ import java.awt.image.VolatileImage;
 import java.awt.*;
 import java.io.*;
 import java.lang.reflect.InvocationTargetException;
+import java.util.ArrayList;
 
 public class Game extends JPanel implements Runnable, KeyListener {
     private Thread gameThread; // Thread game is ran on
@@ -28,12 +29,25 @@ public class Game extends JPanel implements Runnable, KeyListener {
     
     private double targetFrameTime;
 
+    /*
+        Many different things can block and unblock inputs at once.
+        For example if this was a boolean many things could set it to true and false many times a frame.
+        For that reason input is free when the size of this array is zero.
+    */
+    public static ArrayList<String> inputBlockers = new ArrayList<>();
+    
     /*  Having keysDownLastFrame and keys down this frame so we can implement Game.isKeyDown
         that can be called at any time, instead of events.
     */
     public static final int MAX_KEYS = 256; // We track most keys 0->256
     public static boolean[] keysDownLastFrame = new boolean[MAX_KEYS]; // Last frame
     public static boolean[] keysDown = new boolean[MAX_KEYS]; // Current frame
+
+    /*
+        Text the user has inputted, taking into account the capitals and modifers (!@#$%^&*) and such.
+        Will start overwriting after 1024 characters.
+    */
+    public static String textInputBuffer = "";
 
     /*
      * Same as above
@@ -219,29 +233,6 @@ public class Game extends JPanel implements Runnable, KeyListener {
     VolatileImage va = null;
 
     public void Draw(Graphics2D g) {
-        if (la == null) {
-            try {
-                la = ImageIO.read(new File("./res/Bullet.png"));
-                GraphicsConfiguration gc = GraphicsEnvironment.getLocalGraphicsEnvironment()
-                                                                .getDefaultScreenDevice()
-                                                                .getDefaultConfiguration();
-
-                // Create a VolatileImage with the same dimensions as the source image
-                va = gc.createCompatibleVolatileImage(la.getWidth(), la.getHeight(), Transparency.TRANSLUCENT);
-                Graphics2D vg = (Graphics2D) va.createGraphics();
-
-                vg.setColor(Color.RED);
-                vg.fillRect(0, 0, la.getWidth(), la.getHeight());
-
-                vg.dispose();
-            } catch (IOException e) {
-                // TODO Auto-generated catch block
-                e.printStackTrace();
-            }
-        }
-
-        g.drawImage(va, 0, 0, null);
-
         AffineTransform defaultTransform = g.getTransform();
 
         g.setTransform(Game.worldTransform);
@@ -263,9 +254,13 @@ public class Game extends JPanel implements Runnable, KeyListener {
                 // Unreachable, to my knowledge.
             }
         }
+        
+        Panel.InputField("Enter Name");
 
         g.setTransform(defaultTransform);
         this.DrawFPS(g);
+        
+        Panel.Draw(g);
     }
 
     public static void ResetMouse() {
@@ -512,22 +507,34 @@ public class Game extends JPanel implements Runnable, KeyListener {
     }
 
     static boolean IsKeyDown(int keycode) {
+        if (Game.inputBlockers.size() > 0) return false;
+        
         return Game.keysDown[keycode] == true; // Check if it's down in our array'
     }
     static boolean IsKeyPressed(int keycode) {
+        if (Game.inputBlockers.size() > 0) return false;
+        
         return Game.keysDown[keycode] == true && Game.keysDownLastFrame[keycode] == false; // It's just pressed if it wasn't pressed last frame but is now
     }
     static boolean IsKeyReleased(int keycode) {
+        if (Game.inputBlockers.size() > 0) return false;
+        
         return Game.keysDown[keycode] == false && Game.keysDownLastFrame[keycode] == true; // Opposite for this
     }
 
     static boolean IsMouseDown(int mouseButton) {
+        if (Game.inputBlockers.size() > 0) return false;
+        
         return Game.mouseButtonsDown[mouseButton] == true; // Check if it's down in our array'
     }
     static boolean IsMousePressed(int mouseButton) {
+        if (Game.inputBlockers.size() > 0) return false;
+        
         return Game.mouseButtonsDown[mouseButton] == true && Game.mouseButtonsDownLastFrame[mouseButton] == false; // It's just pressed if it wasn't pressed last frame but is now
     }
     static boolean IsMouseReleased(int mouseButton) {
+        if (Game.inputBlockers.size() > 0) return false;
+        
         return Game.mouseButtonsDown[mouseButton] == false && Game.mouseButtonsDownLastFrame[mouseButton] == true; // Opposite for this
     }
 
@@ -557,7 +564,21 @@ public class Game extends JPanel implements Runnable, KeyListener {
             Game.keysDown[keyCode] = false; // But false
         }
     }
-
+    
     @Override
-    public void keyTyped(KeyEvent e) { }
+    public void keyTyped(KeyEvent e) {
+        int keyCode = e.getKeyCode();
+        char c = e.getKeyChar();
+        
+        if (!Character.isISOControl(c)) {
+            Game.textInputBuffer = Game.textInputBuffer.concat(Character.toString(c));
+        }
+        if (c == 8 && Game.textInputBuffer.length() > 0) {
+            Game.textInputBuffer = Game.textInputBuffer.substring(0, Game.textInputBuffer.length() - 1);
+        }
+        
+        if (Game.textInputBuffer.length() >= 1024) {
+            Game.textInputBuffer = Game.textInputBuffer.substring(1, Game.textInputBuffer.length());
+        }
+    }
 }

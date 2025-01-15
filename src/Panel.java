@@ -47,6 +47,45 @@ class Panel {
     private Vector2 movementPrevPos;
     private Vector2 movementStartMousePos;
 
+    private static String inputContext = null;
+    private static String inputInput = null;
+    
+    public static void Draw(Graphics2D g) {
+        if (inputContext != null) {
+            if (Game.inputBlockers.indexOf("PanelInputField") == -1)
+                Game.inputBlockers.add("PanelInputField");
+            
+            g.setColor(new Color(0, 0, 0, 100));
+            g.fillRect(0, 0, Game.WINDOW_WIDTH, Game.WINDOW_HEIGHT);
+            
+            Rectangle inputRectangle = new Rectangle();
+            inputRectangle.width = Game.WINDOW_WIDTH/4 + 200;
+            inputRectangle.height = 300;
+            
+            inputRectangle.x = (int)(Game.WINDOW_WIDTH/2.0 - inputRectangle.width/2.0);
+            inputRectangle.y = (int)(Game.WINDOW_HEIGHT/2.0 - inputRectangle.height/2.0);
+            
+            g.setColor(new Color(24, 24, 24));
+            GG.fillRect(inputRectangle);
+            
+            g.setColor(Color.WHITE);
+            g.setFont(TileMapEditor.ED_FONT);
+            
+            g.drawString(Game.textInputBuffer, inputRectangle.x, inputRectangle.y);
+        } else {
+            Game.inputBlockers.remove("PanelInputField");
+        }
+    }
+
+    public static String InputField(String context) {
+        if (Panel.inputContext == null) {
+            // Game.textInputBuffer = "";
+        }
+        Panel.inputContext = context;
+        
+        return Game.textInputBuffer;
+    }
+
     public Panel() {
     }
 
