@@ -10,10 +10,14 @@ Implements KeyListener interface to listen for keyboard input
 Implements Runnable interface to use "threading" - let the game do two things at once
 */
 
+import javax.imageio.ImageIO;
 import javax.swing.*;
 
 import java.awt.event.*;
+import java.awt.geom.AffineTransform;
 import java.awt.geom.NoninvertibleTransformException;
+import java.awt.image.BufferedImage;
+import java.awt.image.VolatileImage;
 import java.awt.*;
 import java.io.*;
 import java.lang.reflect.InvocationTargetException;
@@ -50,7 +54,9 @@ public class Game extends JPanel implements Runnable, KeyListener {
     public static int WIDTH = WINDOW_WIDTH;
     public static int HEIGHT = WINDOW_HEIGHT;
 
-    static Vector2 mousePos = new Vector2(); // Mouse position so classes can access Game.mousePos
+    // This one is in the world (relative to the camera)
+    static Vector2 worldMousePos = new Vector2(); // Mouse position so classes can access Game.mousePos
+    static Vector2 mousePos = new Vector2();  // Relative to the top left
     
     // Last reported FPS
     public static double FPS;
@@ -73,6 +79,8 @@ public class Game extends JPanel implements Runnable, KeyListener {
     // Good Graphics
     public static GG gg = new GG();
 
+    public static AffineTransform worldTransform = new AffineTransform();
+
     // Initialize the player
     public static Player player = new Player(100, 100, 0);
     public Weapon gun = new Weapon(1000, 10, 10, player);
@@ -80,6 +88,8 @@ public class Game extends JPanel implements Runnable, KeyListener {
     // Load test map
     TileMap testMap;
     TileMapEditor editor;
+
+    public boolean editorEnabled = false;
 
     public Vector2 testPosition = new Vector2();
 
@@ -148,24 +158,45 @@ public class Game extends JPanel implements Runnable, KeyListener {
 
 
         this.testMap = new TileMap(20, 20);
-        this.editor = new TileMapEditor(testMap);
         SpriteSheet def = this.testMap.LoadSpriteSheet("res/Tile_set.png", 16);
-        this.testMap.layers.get(0).SetTile(2, 0, def, 0);
 
-        for (int y = 5; y < 10; y++) {
-            for (int x = 5; x < 10; x++) {
-                this.testMap.layers.get(0).SetTile(x, y, def, 2);
-            }
-        }
-
+        this.editor = new TileMapEditor(testMap);
+        
+        this.testMap.LoadFromFile("./res/tempMapFile.wmap");
         // Maximize window
         this.parentJFrame.setExtendedState( this.parentJFrame.getExtendedState()|JFrame.MAXIMIZED_BOTH );
     }
 
     public void Update(double deltaTime) {
+        worldTransform = new AffineTransform();
+
+        worldTransform.translate(Game.WINDOW_WIDTH/2.0 - player.frameWidth / 2.0,
+                                Game.WINDOW_HEIGHT/2.0 - player.frameHeight / 2.0);
+
+        worldTransform.translate(-player.x, -player.y);
+
+        Point mousePoint = new Point((int)mousePos.x, (int)mousePos.y);
+        Point worldMousePoint = new Point();
+        try {
+            worldTransform.inverseTransform(mousePoint, worldMousePoint);
+        } catch (NoninvertibleTransformException e) {
+
+        }
+        Game.worldMousePos = new Vector2(worldMousePoint.x, worldMousePoint.y);
+
         player.Update(deltaTime);
         gun.Update(deltaTime);
-        editor.Update(deltaTime);
+
+        if (this.editorEnabled) {
+            editor.Update(deltaTime);
+        }
+
+        if (Game.IsKeyPressed(KeyEvent.VK_E)) {
+            this.editorEnabled = !this.editorEnabled;
+            if (this.editorEnabled) {
+                this.editor = new TileMapEditor(this.testMap);
+            }
+        }
         // System.out.println("Game tick! At " + 1.0/deltaTime + "TPS");
     }
 
@@ -184,20 +215,56 @@ public class Game extends JPanel implements Runnable, KeyListener {
         g.drawString(text, Game.WIDTH - textWidth - 10, 32 + 10);
     }
 
+    BufferedImage la = null;
+    VolatileImage va = null;
+
     public void Draw(Graphics2D g) {
+        if (la == null) {
+            try {
+                la = ImageIO.read(new File("./res/Bullet.png"));
+                GraphicsConfiguration gc = GraphicsEnvironment.getLocalGraphicsEnvironment()
+                                                                .getDefaultScreenDevice()
+                                                                .getDefaultConfiguration();
+
+                // Create a VolatileImage with the same dimensions as the source image
+                va = gc.createCompatibleVolatileImage(la.getWidth(), la.getHeight(), Transparency.TRANSLUCENT);
+                Graphics2D vg = (Graphics2D) va.createGraphics();
+
+                vg.setColor(Color.RED);
+                vg.fillRect(0, 0, la.getWidth(), la.getHeight());
+
+                vg.dispose();
+            } catch (IOException e) {
+                // TODO Auto-generated catch block
+                e.printStackTrace();
+            }
+        }
+
+        g.drawImage(va, 0, 0, null);
+
+        AffineTransform defaultTransform = g.getTransform();
+
+        g.setTransform(Game.worldTransform);
         testMap.Draw(g);
 
         //draw player obj
         player.Draw(g);
         //draw the weapon projectiles
         gun.Draw(g);
-        
-        try {
-            this.editor.Draw(g);
-        } catch (NoninvertibleTransformException e) {
-            // TODO Auto-generated catch block
-            e.printStackTrace();
+
+        if (this.editorEnabled) {
+            try {
+                // Workaround: Temporarily set mouse to world mouse then revert for editor
+                Vector2 origPos = Game.mousePos.scale(1);
+                Game.mousePos = Game.worldMousePos; 
+                this.editor.Draw(g);
+                Game.mousePos = origPos;
+            } catch (NoninvertibleTransformException e) {
+                // Unreachable, to my knowledge.
+            }
         }
+
+        g.setTransform(defaultTransform);
         this.DrawFPS(g);
     }
 
@@ -232,6 +299,7 @@ public class Game extends JPanel implements Runnable, KeyListener {
         nextDrawDeadline = now + this.targetFrameTime - this.targetFrameTime/16.0;
 
         Point mp = this.getMousePosition();
+
         if (mp != null)
             Game.mousePos = new Vector2(mp.x, mp.y);
 
@@ -241,7 +309,7 @@ public class Game extends JPanel implements Runnable, KeyListener {
         Game.WIDTH = Game.WINDOW_WIDTH;
         Game.HEIGHT = Game.WINDOW_HEIGHT;    
 
-        Game.FPS = 1.0/deltaTime;
+        Game.FPS = 1.0 / deltaTime;
         lastDraw = Game.now();
 
         Game.deltaTime = deltaTime;
@@ -259,19 +327,19 @@ public class Game extends JPanel implements Runnable, KeyListener {
         // Set good graphic's graphic context to the new graphic's context
         GG.g = g;
 
-
+        
         // Set anti-aliasing
         g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_SPEED);
-
+        
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
-                           RenderingHints.VALUE_ANTIALIAS_ON); 
-
+        RenderingHints.VALUE_ANTIALIAS_ON); 
+        
         g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING,
-                           RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-
+        RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+        
         g.setColor(Color.BLACK);
         g.fillRect(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
-
+        
         Game.currentCursor = Cursor.getPredefinedCursor(Cursor.DEFAULT_CURSOR);
         this.Draw(g);
         
@@ -279,7 +347,7 @@ public class Game extends JPanel implements Runnable, KeyListener {
         for (int i = 0; i < Game.mouseButtonsDown.length; i++) {
             Game.mouseButtonsDownLastFrame[i] = Game.mouseButtonsDown[i];
         }
-
+        
         // Update keysdown array
         for (int i = 0; i < Game.keysDown.length; i++) {
             Game.keysDownLastFrame[i] = Game.keysDown[i];

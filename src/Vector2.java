@@ -5,8 +5,10 @@
 * Description: Vector2 utility
 */
 
+import java.awt.geom.AffineTransform;
+
 class Vector2 {
-    double x, y;
+    double x = 0, y = 0;
     
     public Vector2(double x, double y) {
         this.x = x;
@@ -22,6 +24,14 @@ class Vector2 {
         this.x = s;
         this.y = s;
     }
+
+    public Vector2 ApplyTransformation(AffineTransform a) {
+        double[] points = {this.x, this.y};
+        double[] outPoints = new double[2];
+        a.transform(points, 0, outPoints, 0, 2);
+        return new Vector2(outPoints[0], outPoints[1]);
+    }
+
     public double magnitude() {
         return Math.sqrt(Math.pow(this.x, 2) + Math.pow(this.y, 2));
     }
