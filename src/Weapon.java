@@ -1,5 +1,6 @@
 import java.awt.*;
 import java.awt.event.KeyEvent;
+import java.awt.event.MouseEvent;
 import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
 import java.io.File;
@@ -33,7 +34,7 @@ public class Weapon {
 
     public void Update(double deltaTime) {
         // Handle firing
-        if (Game.IsKeyDown(KeyEvent.VK_V) && System.currentTimeMillis() - lastFireTime >= 1000 / fireRate) {
+        if (Game.IsMouseDown(MouseEvent.BUTTON1) && System.currentTimeMillis() - lastFireTime >= 1000 / fireRate) {
             fire();
             System.out.println("shoot button is pressed");
             lastFireTime = System.currentTimeMillis();
@@ -98,13 +99,13 @@ public class Weapon {
                 // Create an AffineTransform to flip the image horizontally
                 AffineTransform transform = new AffineTransform();
                 // Translate to the position first
-                transform.translate(x + bullet.getWidth(), y);
+                transform.translate(x + bullet.getWidth() - 35, y - 27);
                 // Scale horizontally by -1 to flip the image
                 transform.scale(-1, 1);
                 g.drawImage(bullet, transform, null);
             } else {
-                // Draw the projectile normally
-                g.drawImage(bullet, x, y, null);
+                // Draw the projectile adjusting so its centered correctly and coming out of the gun
+                g.drawImage(bullet, x - 5, y - 27, null);
             }
         }
     

@@ -96,8 +96,11 @@ public class Game extends JPanel implements Runnable, KeyListener {
     public static AffineTransform worldTransform = new AffineTransform();
 
     // Initialize the player
-    public static Player player = new Player(100, 100, 0);
+    public static Player player = new Player(100, 100);
+    //initialize the weapon
     public Weapon gun = new Weapon(1000, 10, 10, player);
+    //Create enemy class
+    public Enemy badguy = new Enemy(100, 100);
 
     // Load test map
     TileMap testMap;
@@ -112,7 +115,7 @@ public class Game extends JPanel implements Runnable, KeyListener {
         
         this.setFocusable(true); // make everything in this class appear on the screen
         this.addKeyListener(this); // start listening for keyboard input
-        
+
         Game game = this;
         addMouseListener(new MouseAdapter() {
 			public void mousePressed(MouseEvent e) {
@@ -199,6 +202,13 @@ public class Game extends JPanel implements Runnable, KeyListener {
         Game.worldMousePos = new Vector2(worldMousePoint.x, worldMousePoint.y);
 
         player.Update(deltaTime);
+        badguy.Update(deltaTime);
+        //badguy2.Update(deltaTime);
+        //badguy3.Update(deltaTime);
+        //badguy4.Update(deltaTime);
+        //badguy5.Update(deltaTime);
+        //badguy6.Update(deltaTime);
+        //badguy7.Update(deltaTime);
         gun.Update(deltaTime);
 
         if (this.editorEnabled) {
@@ -242,6 +252,22 @@ public class Game extends JPanel implements Runnable, KeyListener {
         player.Draw(g);
         //draw the weapon projectiles
         gun.Draw(g);
+
+        //draw the ennemy
+        badguy.Draw(g);
+        //badguy2.Draw(g);
+        //badguy3.Draw(g);
+        //badguy4.Draw(g);
+        //badguy5.Draw(g);
+        //badguy6.Draw(g);
+       // badguy7.Draw(g);
+        
+        try {
+            this.editor.Draw(g);
+        } catch (NoninvertibleTransformException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+        }
 
         if (this.editorEnabled) {
             try {

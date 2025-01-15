@@ -28,7 +28,7 @@ public class Player extends GameObject {
     private final int MAX_AFTERIMAGES = 5;
     private final int DASH_DISTANCE = 500;
 
-    public Player(int health, int maxHealth, int currentScore) {
+    public Player(int health, int maxHealth) {
         try {
             // Load idle sprite sheet
             idleSpriteSheet = ImageIO.read(new File("res/PlayerIdle.png"));
