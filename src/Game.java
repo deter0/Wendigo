@@ -157,7 +157,7 @@ public class Game extends JPanel implements Runnable, KeyListener {
         this.gameThread.start(); // Start game 
 
 
-        this.testMap = new TileMap(20, 20);
+        this.testMap = new TileMap(100, 100);
         SpriteSheet def = this.testMap.LoadSpriteSheet("res/Tile_set.png", 16);
 
         this.editor = new TileMapEditor(testMap);
@@ -193,7 +193,7 @@ public class Game extends JPanel implements Runnable, KeyListener {
 
         if (Game.IsKeyPressed(KeyEvent.VK_E)) {
             this.editorEnabled = !this.editorEnabled;
-            if (this.editorEnabled) {
+            if (this.editorEnabled && Game.IsKeyDown(KeyEvent.VK_SHIFT)) {
                 this.editor = new TileMapEditor(this.testMap);
             }
         }
@@ -317,25 +317,41 @@ public class Game extends JPanel implements Runnable, KeyListener {
         /* Required Update logic */
         Game.deltaScroll = Game.scrollThisFrame - Game.scrollLastFrame;
         Game.scrollLastFrame = Game.scrollThisFrame;
-
+        
         // Update the game
         Update(deltaTime);
-
+        
         // super.paint(gAbs);
         Graphics2D g = (Graphics2D)gAbs;
+        
+        // GraphicsConfiguration gc = GraphicsEnvironment.getLocalGraphicsEnvironment()
+        //                                                 .getDefaultScreenDevice()
+        //                                                 .getDefaultConfiguration();
+
+        // System.out.println(gc.getImageCapabilities().isAccelerated());
+
+        // VolatileImage backBuffer = gc.createCompatibleVolatileImage(WINDOW_WIDTH, WINDOW_HEIGHT, Transparency.OPAQUE);
+        // backBuffer.setAccelerationPriority(1.f);
+
+        // System.out.println("Backbuffer accelerated: " + backBuffer.getCapabilities(gc).isAccelerated());
+
+        // Graphics2D bg = backBuffer.createGraphics();
+
 
         // Set good graphic's graphic context to the new graphic's context
         GG.g = g;
 
         
         // Set anti-aliasing
+        g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+
         g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_SPEED);
         
-        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
-        RenderingHints.VALUE_ANTIALIAS_ON); 
+        // g.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
+        //     RenderingHints.VALUE_ANTIALIAS_ON); 
         
         g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING,
-        RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+            RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
         
         g.setColor(Color.BLACK);
         g.fillRect(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
@@ -354,6 +370,8 @@ public class Game extends JPanel implements Runnable, KeyListener {
         }
 
         g.dispose();
+
+        // g.drawImage(backBuffer, null, null);
 
         repaint((int)(this.targetFrameTime*900));
     }

@@ -225,6 +225,9 @@ class TileMapEditor {
     
                         ssEditor.EntryBegin("Group Selection: ");
                         ssEditor.nextButtonDisabled = this.sslSelection.size() < 2;
+                        if (!ssEditor.nextButtonDisabled && Game.IsKeyPressed(KeyEvent.VK_G) && Game.IsKeyDown(KeyEvent.VK_SHIFT)) {
+                            this.SSLGroupSelection();
+                        }
                         if (ssEditor.EntryButton("Group")) {
                             this.SSLGroupSelection();
                         }
@@ -232,6 +235,13 @@ class TileMapEditor {
                         ssEditor.nextButtonDisabled = this.sslSelection.size() == 1 && !this.sslSelection.get(0).IsCompoundTile();
                         if (ssEditor.EntryButton("Ungroup")) {
                             this.SSLUnGroupSelection();
+                        }
+                        ssEditor.EntryEnd();
+
+                        ssEditor.EntryBegin("Sheet Alpha: ");
+                        ssEditor.nextButtonHighlight = this.sslSheet.hasAlpha;
+                        if (ssEditor.EntryButton(this.sslSheet.hasAlpha ? "Enabled" : "Disabled")) {
+                            this.sslSheet.SetHasAlpha(!this.sslSheet.hasAlpha);
                         }
     
                         ssEditor.EntryEnd();
@@ -268,10 +278,6 @@ class TileMapEditor {
             ssEditor.size = prevSize;
 
             ssEditor.ListBegin("spriteSheetEdSheet", new Vector2(0, 0), new Vector2(1.0, 1.0));
-
-            g.setColor(Color.BLACK);
-            GG.fillRect(0, 0,
-                        Game.WINDOW_WIDTH, Game.WINDOW_HEIGHT);
 
             AffineTransform prevTrans = g.getTransform();
             Vector2 imagePos = new Vector2(-this.sslImage.getWidth(null) / 2.0, -this.sslImage.getHeight(null) / 2.0);
@@ -442,7 +448,11 @@ class TileMapEditor {
     public TileMapEditor(TileMap m) {
         this.map = m;
 
-        this.currentLayer = m.layers.get(0);
+        if (m.layers.size() > 0) {
+            this.currentLayer = m.layers.get(0);
+        } else {
+            this.currentLayer = null;
+        }
 
         LoadInterfaceFont();
     }
@@ -472,49 +482,55 @@ class TileMapEditor {
     Panel tools = new Panel();
 
     
-    String[] toolButtons = {"Paint", "Erase", "Random Selection"};
-    String currentTool = toolButtons[0];
+    String[] toolButtons = {"Select", "Paint", "Erase", "Random Selection"};
+    String currentTool = null;
 
     public void Draw(Graphics2D g) throws NoninvertibleTransformException {
-        Panel.context = "Editor";
+        Panel.context = "Editor";        
 
         if (this.map != null) {
-            for (TileMapLayer l : this.map.layers) {
-                for (Tile t : l.tiles) {
+            for (int y = 0; y < this.map.height; y++) {
+                for (int x = 0; x < this.map.height; x++) {
+                    Color tileOutlineColor = new Color(175, 50, 200, 40);
+
+                    Vector2 position = this.map.LocalToWorldVectorScalar(new Vector2(x, y));
+                    Vector2 tileSize = this.map.LocalToWorldVectorScalar(new Vector2(1, 1));
+
+                    g.setColor(tileOutlineColor);
+                    GG.drawRect(position, tileSize);
+                }
+            }
+            if (this.currentLayer != null) {
+                for (Tile t : this.currentLayer.tiles) {
                     if (t.IsNull()) continue;
-
-                    Color tileOutlineColor = new Color(175, 50, 200, 100);
+    
+                    Color tileOutlineColor = new Color(60, 106, 171, 190);
                     Rectangle tileRectangle = new Rectangle();
-
-                    boolean drawOutline = this.sslGridVisible;
+    
+                    boolean drawOutline = true;
                     boolean hoveringTile = false;
                     boolean selected = (this.sslSelection.indexOf(t) != -1);
                     boolean lastSelected = this.sslSelectedKeyTile == t;
-
+    
                     Vector2 position = this.map.LocalToWorldVectorScalar(new Vector2(t.x, t.y));
                     Vector2 tileSize = this.map.LocalToWorldVectorScalar(new Vector2(t.w, t.h));
-
+    
                     tileRectangle.x = (int)(position.x);
                     tileRectangle.y = (int)(position.y);
                     tileRectangle.width = (int)(tileSize.x);
                     tileRectangle.height = (int)(tileSize.y);
-
+    
                     if (tileRectangle.contains(new Point((int)Game.worldMousePos.x, (int)Game.worldMousePos.y))) {
-                        tileOutlineColor = new Color(175, 50, 200);
+                        tileOutlineColor = new Color(80, 150, 250);
                         hoveringTile = true;
                         drawOutline = true;
                     }
-
+    
                     if (selected) {
-                        tileOutlineColor = Panel.BUTTON_HILI_BG;
+                        tileOutlineColor = new Color(59, 62, 219);
                         drawOutline = true;
-
-                        if (lastSelected) {
-                            tileOutlineColor = new Color(91, 207, 117);
-                        }
                     }
-
-                    
+    
                     if (drawOutline) {
                         g.setColor(tileOutlineColor);
                         g.setStroke(new BasicStroke((hoveringTile || lastSelected) ? 0.6f : 0.25f));
@@ -564,6 +580,11 @@ class TileMapEditor {
         tools.ListEnd();
 
         tools.End();
+
+        if (this.currentTool == "Paint") {
+            layers.disabled = true;
+            sheetsPanel.disabled = true;
+        }
 
         layers.Begin(g, new Vector2(800, 250), new Vector2(300, 300));
         

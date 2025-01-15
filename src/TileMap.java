@@ -20,6 +20,8 @@ class SpriteSheet {
     protected BufferedImage image;
     protected VolatileImage GPUImage;
 
+    protected boolean hasAlpha = false;
+
     protected String imagePath;
 
     ArrayList<Tile> tiles;
@@ -31,8 +33,7 @@ class SpriteSheet {
     public Image GetImage(Graphics2D g) {
         if (this.GPUImage != null && this.VolatileImageNeedsCreation(g)) {
             System.out.println("[LOG]: Recreating volatile image.");
-            this.GPUImage = gc.createCompatibleVolatileImage(this.image.getWidth(), this.image.getHeight(), Transparency.BITMASK);
-            this.RenderVolatileImage();
+            this.RenderGPUImage();
         }
         
         if (this.GPUImage != null) {
@@ -42,12 +43,13 @@ class SpriteSheet {
         return (Image)this.image;
     }
 
-    public void RenderVolatileImage() {
+    public void RenderGPUImage() {
         // Obtain a Graphics2D context for the VolatileImage
         Graphics2D vg = (Graphics2D) this.GPUImage.createGraphics();
     
+        vg.setComposite(AlphaComposite.Src);
         // Use SrcOver composite to blend the images properly
-        vg.clearRect(0, 0, this.GPUImage.getWidth(), this.GPUImage.getHeight());
+        // vg.clearRect(0, 0, this.GPUImage.getWidth(), this.GPUImage.getHeight());
 
         // Draw the original image onto the VolatileImage
         vg.drawImage(this.image, 0, 0, null);
@@ -63,6 +65,15 @@ class SpriteSheet {
         return false;
     }
 
+    public void SetHasAlpha(boolean hasAlpha) {
+        this.hasAlpha = hasAlpha;
+        GraphicsConfiguration gc = GraphicsEnvironment.getLocalGraphicsEnvironment()
+                                                      .getDefaultScreenDevice()
+                                                      .getDefaultConfiguration();
+        this.GPUImage = gc.createCompatibleVolatileImage(this.image.getWidth(), this.image.getHeight(), hasAlpha ? Transparency.TRANSLUCENT : Transparency.OPAQUE);
+        this.RenderGPUImage();
+    }
+
     private void Init(BufferedImage image, String imagePath, int tileSize) {
         this.tileSize = tileSize;
         this.image = image;
@@ -75,18 +86,13 @@ class SpriteSheet {
         this.numTilesY = imageHeight / tileSize;
 
         this.UpdateTilesSize();
-
-        GraphicsConfiguration gc = GraphicsEnvironment.getLocalGraphicsEnvironment()
-                                                      .getDefaultScreenDevice()
-                                                      .getDefaultConfiguration();
-
-        // Create a VolatileImage with the same dimensions as the source image
-        this.GPUImage = gc.createCompatibleVolatileImage(this.image.getWidth(), this.image.getHeight(), Transparency.BITMASK);
+        this.SetHasAlpha(false);
 
         if (this.GPUImage == null) {
             System.err.println("[ERROR]: Error creating volatile image (GPU Image) for sprite sheet: `" + this.name + "`. Expect performance degradations.");
         } else {
-            this.RenderVolatileImage();
+            this.RenderGPUImage();
+            this.GPUImage.setAccelerationPriority(1.0f);
         }
     
         if (imageWidth % tileSize != 0 || imageHeight % tileSize != 0) {
@@ -136,6 +142,15 @@ class SpriteSheet {
             this.tiles.set(t.y * this.numTilesX + t.x, t);
         }
 
+        String hasAlpha = TileMap.readString(br, "has_alpha");
+        System.out.println("has alpha =" + hasAlpha);
+        if (hasAlpha.equals("true")) {
+            this.SetHasAlpha(true);
+        } else {
+            this.SetHasAlpha(false);
+        }
+
+
         TileMap.GoToEnd(br);
     }
     public void SaveToFile(FileWriter fw, TileMap map) throws IOException {
@@ -169,6 +184,8 @@ class SpriteSheet {
                 }
             }
         }
+
+        fw.write("has_alpha="+this.hasAlpha+"\n");
 
         fw.write("END\n");
     }
@@ -624,7 +641,7 @@ class TileMap {
         int y = (int)Math.floor(position.y);
 
         if (x < 0) return;
-        if (x > this.width) return;
+        if (x >= this.width) return;
         if (y < 0) return;
         if (y > this.height) return;
 
