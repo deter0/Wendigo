@@ -12,8 +12,8 @@ public class Player extends GameObject {
     private BufferedImage[] idleFrames, runFrames;
     private BufferedImage[] currentFrames; // Active frame set
     private int currentFrame = 0;
-    private int frameWidth;
-    private int frameHeight;
+    protected int frameWidth;
+    protected int frameHeight;
     private double dx = 0;
     private double dy = 0;
     public boolean reflect;
@@ -75,7 +75,7 @@ public class Player extends GameObject {
         int centerX = x + frameWidth / 2;
 
         // Check if the mouse is to the left or right of the center of the image
-        reflect = Game.mousePos.x < centerX;
+        reflect = Game.worldMousePos.x < centerX;
 
         // Create a transform for reflection if needed
         AffineTransform transform = new AffineTransform();

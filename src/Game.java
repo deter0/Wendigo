@@ -10,13 +10,17 @@ Implements KeyListener interface to listen for keyboard input
 Implements Runnable interface to use "threading" - let the game do two things at once
 */
 
+import javax.imageio.ImageIO;
 import javax.swing.*;
 
 import java.awt.event.*;
+import java.awt.geom.AffineTransform;
 import java.awt.geom.NoninvertibleTransformException;
+import java.awt.image.BufferedImage;
+import java.awt.image.VolatileImage;
 import java.awt.*;
 import java.io.*;
-
+import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 
 public class Game extends JPanel implements Runnable, KeyListener {
@@ -25,12 +29,25 @@ public class Game extends JPanel implements Runnable, KeyListener {
     
     private double targetFrameTime;
 
+    /*
+        Many different things can block and unblock inputs at once.
+        For example if this was a boolean many things could set it to true and false many times a frame.
+        For that reason input is free when the size of this array is zero.
+    */
+    public static ArrayList<String> inputBlockers = new ArrayList<>();
+    
     /*  Having keysDownLastFrame and keys down this frame so we can implement Game.isKeyDown
         that can be called at any time, instead of events.
     */
     public static final int MAX_KEYS = 256; // We track most keys 0->256
     public static boolean[] keysDownLastFrame = new boolean[MAX_KEYS]; // Last frame
     public static boolean[] keysDown = new boolean[MAX_KEYS]; // Current frame
+
+    /*
+        Text the user has inputted, taking into account the capitals and modifers (!@#$%^&*) and such.
+        Will start overwriting after 1024 characters.
+    */
+    public static String textInputBuffer = "";
 
     /*
      * Same as above
@@ -51,7 +68,9 @@ public class Game extends JPanel implements Runnable, KeyListener {
     public static int WIDTH = WINDOW_WIDTH;
     public static int HEIGHT = WINDOW_HEIGHT;
 
-    static Vector2 mousePos = new Vector2(); // Mouse position so classes can access Game.mousePos
+    // This one is in the world (relative to the camera)
+    static Vector2 worldMousePos = new Vector2(); // Mouse position so classes can access Game.mousePos
+    static Vector2 mousePos = new Vector2();  // Relative to the top left
     
     // Last reported FPS
     public static double FPS;
@@ -74,6 +93,8 @@ public class Game extends JPanel implements Runnable, KeyListener {
     // Good Graphics
     public static GG gg = new GG();
 
+    public static AffineTransform worldTransform = new AffineTransform();
+
     // Initialize the player
     public static Player player = new Player(100, 100);
     //initialize the weapon
@@ -84,6 +105,8 @@ public class Game extends JPanel implements Runnable, KeyListener {
     // Load test map
     TileMap testMap;
     TileMapEditor editor;
+
+    public boolean editorEnabled = false;
 
     public Vector2 testPosition = new Vector2();
 
@@ -151,22 +174,33 @@ public class Game extends JPanel implements Runnable, KeyListener {
         this.gameThread.start(); // Start game 
 
 
-        this.testMap = new TileMap(20, 20);
-        this.editor = new TileMapEditor(testMap);
+        this.testMap = new TileMap(100, 100);
         SpriteSheet def = this.testMap.LoadSpriteSheet("res/Tile_set.png", 16);
-        this.testMap.layers.get(0).SetTile(2, 0, def, 0);
 
-        for (int y = 5; y < 10; y++) {
-            for (int x = 5; x < 10; x++) {
-                this.testMap.layers.get(0).SetTile(x, y, def, 2);
-            }
-        }
-
+        this.editor = new TileMapEditor(testMap);
+        
+        this.testMap.LoadFromFile("./res/tempMapFile.wmap");
         // Maximize window
         this.parentJFrame.setExtendedState( this.parentJFrame.getExtendedState()|JFrame.MAXIMIZED_BOTH );
     }
 
     public void Update(double deltaTime) {
+        worldTransform = new AffineTransform();
+
+        worldTransform.translate(Game.WINDOW_WIDTH/2.0 - player.frameWidth / 2.0,
+                                Game.WINDOW_HEIGHT/2.0 - player.frameHeight / 2.0);
+
+        worldTransform.translate(-player.x, -player.y);
+
+        Point mousePoint = new Point((int)mousePos.x, (int)mousePos.y);
+        Point worldMousePoint = new Point();
+        try {
+            worldTransform.inverseTransform(mousePoint, worldMousePoint);
+        } catch (NoninvertibleTransformException e) {
+
+        }
+        Game.worldMousePos = new Vector2(worldMousePoint.x, worldMousePoint.y);
+
         player.Update(deltaTime);
         badguy.Update(deltaTime);
         //badguy2.Update(deltaTime);
@@ -176,7 +210,17 @@ public class Game extends JPanel implements Runnable, KeyListener {
         //badguy6.Update(deltaTime);
         //badguy7.Update(deltaTime);
         gun.Update(deltaTime);
-        editor.Update(deltaTime);
+
+        if (this.editorEnabled) {
+            editor.Update(deltaTime);
+        }
+
+        if (Game.IsKeyPressed(KeyEvent.VK_E)) {
+            this.editorEnabled = !this.editorEnabled;
+            if (this.editorEnabled && Game.IsKeyDown(KeyEvent.VK_SHIFT)) {
+                this.editor = new TileMapEditor(this.testMap);
+            }
+        }
         // System.out.println("Game tick! At " + 1.0/deltaTime + "TPS");
     }
 
@@ -195,13 +239,20 @@ public class Game extends JPanel implements Runnable, KeyListener {
         g.drawString(text, Game.WIDTH - textWidth - 10, 32 + 10);
     }
 
+    BufferedImage la = null;
+    VolatileImage va = null;
+
     public void Draw(Graphics2D g) {
+        AffineTransform defaultTransform = g.getTransform();
+
+        g.setTransform(Game.worldTransform);
         testMap.Draw(g);
 
         //draw player obj
         player.Draw(g);
         //draw the weapon projectiles
         gun.Draw(g);
+
         //draw the ennemy
         badguy.Draw(g);
         //badguy2.Draw(g);
@@ -217,7 +268,25 @@ public class Game extends JPanel implements Runnable, KeyListener {
             // TODO Auto-generated catch block
             e.printStackTrace();
         }
+
+        if (this.editorEnabled) {
+            try {
+                // Workaround: Temporarily set mouse to world mouse then revert for editor
+                Vector2 origPos = Game.mousePos.scale(1);
+                Game.mousePos = Game.worldMousePos; 
+                this.editor.Draw(g);
+                Game.mousePos = origPos;
+            } catch (NoninvertibleTransformException e) {
+                // Unreachable, to my knowledge.
+            }
+        }
+        
+        Panel.InputField("Enter Name");
+
+        g.setTransform(defaultTransform);
         this.DrawFPS(g);
+        
+        Panel.Draw(g);
     }
 
     public static void ResetMouse() {
@@ -251,6 +320,7 @@ public class Game extends JPanel implements Runnable, KeyListener {
         nextDrawDeadline = now + this.targetFrameTime - this.targetFrameTime/16.0;
 
         Point mp = this.getMousePosition();
+
         if (mp != null)
             Game.mousePos = new Vector2(mp.x, mp.y);
 
@@ -260,7 +330,7 @@ public class Game extends JPanel implements Runnable, KeyListener {
         Game.WIDTH = Game.WINDOW_WIDTH;
         Game.HEIGHT = Game.WINDOW_HEIGHT;    
 
-        Game.FPS = 1.0/deltaTime;
+        Game.FPS = 1.0 / deltaTime;
         lastDraw = Game.now();
 
         Game.deltaTime = deltaTime;
@@ -268,29 +338,45 @@ public class Game extends JPanel implements Runnable, KeyListener {
         /* Required Update logic */
         Game.deltaScroll = Game.scrollThisFrame - Game.scrollLastFrame;
         Game.scrollLastFrame = Game.scrollThisFrame;
-
+        
         // Update the game
         Update(deltaTime);
-
+        
         // super.paint(gAbs);
         Graphics2D g = (Graphics2D)gAbs;
+        
+        // GraphicsConfiguration gc = GraphicsEnvironment.getLocalGraphicsEnvironment()
+        //                                                 .getDefaultScreenDevice()
+        //                                                 .getDefaultConfiguration();
+
+        // System.out.println(gc.getImageCapabilities().isAccelerated());
+
+        // VolatileImage backBuffer = gc.createCompatibleVolatileImage(WINDOW_WIDTH, WINDOW_HEIGHT, Transparency.OPAQUE);
+        // backBuffer.setAccelerationPriority(1.f);
+
+        // System.out.println("Backbuffer accelerated: " + backBuffer.getCapabilities(gc).isAccelerated());
+
+        // Graphics2D bg = backBuffer.createGraphics();
+
 
         // Set good graphic's graphic context to the new graphic's context
         GG.g = g;
 
-
+        
         // Set anti-aliasing
+        g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+
         g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_SPEED);
-
-        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
-                           RenderingHints.VALUE_ANTIALIAS_ON); 
-
+        
+        // g.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
+        //     RenderingHints.VALUE_ANTIALIAS_ON); 
+        
         g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING,
-                           RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-
+            RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+        
         g.setColor(Color.BLACK);
         g.fillRect(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
-
+        
         Game.currentCursor = Cursor.getPredefinedCursor(Cursor.DEFAULT_CURSOR);
         this.Draw(g);
         
@@ -298,13 +384,15 @@ public class Game extends JPanel implements Runnable, KeyListener {
         for (int i = 0; i < Game.mouseButtonsDown.length; i++) {
             Game.mouseButtonsDownLastFrame[i] = Game.mouseButtonsDown[i];
         }
-
+        
         // Update keysdown array
         for (int i = 0; i < Game.keysDown.length; i++) {
             Game.keysDownLastFrame[i] = Game.keysDown[i];
         }
 
         g.dispose();
+
+        // g.drawImage(backBuffer, null, null);
 
         repaint((int)(this.targetFrameTime*900));
     }
@@ -445,22 +533,34 @@ public class Game extends JPanel implements Runnable, KeyListener {
     }
 
     static boolean IsKeyDown(int keycode) {
+        if (Game.inputBlockers.size() > 0) return false;
+        
         return Game.keysDown[keycode] == true; // Check if it's down in our array'
     }
     static boolean IsKeyPressed(int keycode) {
+        if (Game.inputBlockers.size() > 0) return false;
+        
         return Game.keysDown[keycode] == true && Game.keysDownLastFrame[keycode] == false; // It's just pressed if it wasn't pressed last frame but is now
     }
     static boolean IsKeyReleased(int keycode) {
+        if (Game.inputBlockers.size() > 0) return false;
+        
         return Game.keysDown[keycode] == false && Game.keysDownLastFrame[keycode] == true; // Opposite for this
     }
 
     static boolean IsMouseDown(int mouseButton) {
+        if (Game.inputBlockers.size() > 0) return false;
+        
         return Game.mouseButtonsDown[mouseButton] == true; // Check if it's down in our array'
     }
     static boolean IsMousePressed(int mouseButton) {
+        if (Game.inputBlockers.size() > 0) return false;
+        
         return Game.mouseButtonsDown[mouseButton] == true && Game.mouseButtonsDownLastFrame[mouseButton] == false; // It's just pressed if it wasn't pressed last frame but is now
     }
     static boolean IsMouseReleased(int mouseButton) {
+        if (Game.inputBlockers.size() > 0) return false;
+        
         return Game.mouseButtonsDown[mouseButton] == false && Game.mouseButtonsDownLastFrame[mouseButton] == true; // Opposite for this
     }
 
@@ -490,7 +590,21 @@ public class Game extends JPanel implements Runnable, KeyListener {
             Game.keysDown[keyCode] = false; // But false
         }
     }
-
+    
     @Override
-    public void keyTyped(KeyEvent e) { }
+    public void keyTyped(KeyEvent e) {
+        int keyCode = e.getKeyCode();
+        char c = e.getKeyChar();
+        
+        if (!Character.isISOControl(c)) {
+            Game.textInputBuffer = Game.textInputBuffer.concat(Character.toString(c));
+        }
+        if (c == 8 && Game.textInputBuffer.length() > 0) {
+            Game.textInputBuffer = Game.textInputBuffer.substring(0, Game.textInputBuffer.length() - 1);
+        }
+        
+        if (Game.textInputBuffer.length() >= 1024) {
+            Game.textInputBuffer = Game.textInputBuffer.substring(1, Game.textInputBuffer.length());
+        }
+    }
 }
