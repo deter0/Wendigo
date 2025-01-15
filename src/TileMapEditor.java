@@ -127,14 +127,14 @@ class TileMapEditor {
         }
     }
     
-    Panel ssEditor = new Panel();
+    Panel sheetEdPanel = new Panel();
 
     private void SpriteSheetLoader(Graphics2D g) {
         if (this.sslLeftPanelOpen) {
-            this.layers.disabled = true;
+            this.layersPanel.disabled = true;
             this.sheetsPanel.disabled = true;
         } else {
-            this.layers.disabled = false;
+            this.layersPanel.disabled = false;
             this.sheetsPanel.disabled = false;    
         }
 
@@ -176,89 +176,89 @@ class TileMapEditor {
             this.sslSheet.name = new File(this.sslImgPath).getName();
         }
         
-        final double ssEditorPadding = 40.;
-        ssEditor.Begin(g, new Vector2(ssEditorPadding), new Vector2(Game.WINDOW_WIDTH-2*ssEditorPadding, Game.WINDOW_HEIGHT-2*ssEditorPadding));
+        double width = Game.WINDOW_WIDTH/2.0, height = Game.WINDOW_HEIGHT/2.0;
+        sheetEdPanel.Begin(g, this.sheetsPanel.position.sub(new Vector2(width + 20, 0)), new Vector2(width, height));
 
-        ssEditor.Name("Sprite Sheet Editor \"" + this.sslSheet!=null ? this.sslSheet.name : "None" + "\"");
-        if (ssEditor.CloseButton()) {
+        sheetEdPanel.Name("Sprite Sheet Editor \"" + this.sslSheet!=null ? this.sslSheet.name : "None" + "\"");
+        if (sheetEdPanel.CloseButton()) {
             this.sslReset();
             return;
         }
 
-        ssEditor.size.y -= Panel.PADDING;
+        sheetEdPanel.size.y -= Panel.PADDING;
 
-        Vector2 prevPosition = ssEditor.position.scale(1.0);
-        Vector2 prevSize = ssEditor.size.scale(1.0);
+        Vector2 prevPosition = sheetEdPanel.position.scale(1.0);
+        Vector2 prevSize = sheetEdPanel.size.scale(1.0);
 
         if (this.sslError == null && this.sslImage != null && this.sslSheet != null) {
             Vector2 leftCSize = new Vector2();
             if (this.sslLeftPanelOpen) {
-                leftCSize = ssEditor.ListBegin("SSEdLeftC", new Vector2(), new Vector2(0.33, -40));
-                    ssEditor.size.x -= 2*Panel.PADDING;
-                    ssEditor.size.y -= Panel.PADDING;
+                leftCSize = sheetEdPanel.ListBegin("SSEdLeftC", new Vector2(), new Vector2(0.33, -40));
+                    sheetEdPanel.size.x -= 2*Panel.PADDING;
+                    sheetEdPanel.size.y -= Panel.PADDING;
     
-                    ssEditor.EntryBegin("Sprite Sheet Properties");
-                    ssEditor.EntryEnd();
+                    sheetEdPanel.EntryBegin("Sprite Sheet Properties");
+                    sheetEdPanel.EntryEnd();
     
-                    ssEditor.ListBegin("SSEditorProperties", new Vector2(), new Vector2(1.0, 0.5));
-                        ssEditor.EntryBegin("Tile Size: ");
+                    sheetEdPanel.ListBegin("SSEditorProperties", new Vector2(), new Vector2(1.0, 0.5));
+                        sheetEdPanel.EntryBegin("Tile Size: ");
                         
-                        if (ssEditor.EntryButton("Update & Reset")) {
+                        if (sheetEdPanel.EntryButton("Update & Reset")) {
                             this.sslSheet.UpdateTilesSize();
                         }
-                        this.sslSheet.tileSize = (int)ssEditor.EntrySlider(this.sslSheet.tileSize, 2, 128);
+                        this.sslSheet.tileSize = (int)sheetEdPanel.EntrySlider(this.sslSheet.tileSize, 2, 128);
     
-                        ssEditor.EntryEnd();
+                        sheetEdPanel.EntryEnd();
     
-                        ssEditor.EntryBegin("Grid Visibiltiy: ");
-                        if (ssEditor.EntryButton("Toggle")) {
+                        sheetEdPanel.EntryBegin("Grid Visibiltiy: ");
+                        if (sheetEdPanel.EntryButton("Toggle")) {
                             this.sslGridVisible = !this.sslGridVisible;
                         }
-                        ssEditor.EntryEnd();
+                        sheetEdPanel.EntryEnd();
     
-                        ssEditor.EntryBegin("Auto Purge: ");
-                        ssEditor.nextButtonDisabled = this.sslSheet.tilesPurged;
-                        if (ssEditor.EntryButton("Purge Blank Tiles")) {
+                        sheetEdPanel.EntryBegin("Auto Purge: ");
+                        sheetEdPanel.nextButtonDisabled = this.sslSheet.tilesPurged;
+                        if (sheetEdPanel.EntryButton("Purge Blank Tiles")) {
                             this.sslSheet.PurgeBlankTiles();
                         }
-                        ssEditor.EntryEnd();
+                        sheetEdPanel.EntryEnd();
     
-                        ssEditor.EntryBegin("Group Selection: ");
-                        ssEditor.nextButtonDisabled = this.sslSelection.size() < 2;
-                        if (!ssEditor.nextButtonDisabled && Game.IsKeyPressed(KeyEvent.VK_G) && Game.IsKeyDown(KeyEvent.VK_SHIFT)) {
+                        sheetEdPanel.EntryBegin("Group Selection: ");
+                        sheetEdPanel.nextButtonDisabled = this.sslSelection.size() < 2;
+                        if (!sheetEdPanel.nextButtonDisabled && Game.IsKeyPressed(KeyEvent.VK_G) && Game.IsKeyDown(KeyEvent.VK_SHIFT)) {
                             this.SSLGroupSelection();
                         }
-                        if (ssEditor.EntryButton("Group")) {
+                        if (sheetEdPanel.EntryButton("Group")) {
                             this.SSLGroupSelection();
                         }
     
-                        ssEditor.nextButtonDisabled = this.sslSelection.size() == 1 && !this.sslSelection.get(0).IsCompoundTile();
-                        if (ssEditor.EntryButton("Ungroup")) {
+                        sheetEdPanel.nextButtonDisabled = this.sslSelection.size() == 1 && !this.sslSelection.get(0).IsCompoundTile();
+                        if (sheetEdPanel.EntryButton("Ungroup")) {
                             this.SSLUnGroupSelection();
                         }
-                        ssEditor.EntryEnd();
+                        sheetEdPanel.EntryEnd();
 
-                        ssEditor.EntryBegin("Sheet Alpha: ");
-                        ssEditor.nextButtonHighlight = this.sslSheet.hasAlpha;
-                        if (ssEditor.EntryButton(this.sslSheet.hasAlpha ? "Enabled" : "Disabled")) {
+                        sheetEdPanel.EntryBegin("Sheet Alpha: ");
+                        sheetEdPanel.nextButtonHighlight = this.sslSheet.hasAlpha;
+                        if (sheetEdPanel.EntryButton(this.sslSheet.hasAlpha ? "Enabled" : "Disabled")) {
                             this.sslSheet.SetHasAlpha(!this.sslSheet.hasAlpha);
                         }
     
-                        ssEditor.EntryEnd();
-                    ssEditor.ListEnd();
+                        sheetEdPanel.EntryEnd();
+                    sheetEdPanel.ListEnd();
     
-                    ssEditor.EntryBegin("Tile Properties");
-                    ssEditor.EntryEnd();
+                    sheetEdPanel.EntryBegin("Tile Properties");
+                    sheetEdPanel.EntryEnd();
     
-                    ssEditor.ListBegin("SSTileProperties", new Vector2(), new Vector2(1.0, 1.0));
-                    ssEditor.ListEnd();
+                    sheetEdPanel.ListBegin("SSTileProperties", new Vector2(), new Vector2(1.0, 1.0));
+                    sheetEdPanel.ListEnd();
     
-                    if (ssEditor.Button("Cancel", new Vector2(Panel.PADDING, 0), new Vector2(0, 40))) {
+                    if (sheetEdPanel.Button("Cancel", new Vector2(Panel.PADDING, 0), new Vector2(0, 40))) {
                         this.sslReset();
                         return;
                     }
     
-                    if (ssEditor.Button(this.sslIsNew ? "Create Sheet" : "Save Sheet", new Vector2(ssEditor.lastButtonSize.x + 4*Panel.PADDING, 0), new Vector2(0, 40))) {
+                    if (sheetEdPanel.Button(this.sslIsNew ? "Create Sheet" : "Save Sheet", new Vector2(sheetEdPanel.lastButtonSize.x + 4*Panel.PADDING, 0), new Vector2(0, 40))) {
                         if (this.sslIsNew) {
                             this.map.ownedSheets.add(this.sslSheet);
                         }
@@ -268,27 +268,27 @@ class TileMapEditor {
     
                         return;
                     }
-                ssEditor.ListEnd();
+                sheetEdPanel.ListEnd();
             }
 
             prevPosition.x += leftCSize.x + Panel.PADDING;
             prevSize.x -= leftCSize.x + 2*Panel.PADDING;
 
-            ssEditor.position = prevPosition;
-            ssEditor.size = prevSize;
+            sheetEdPanel.position = prevPosition;
+            sheetEdPanel.size = prevSize;
 
-            ssEditor.ListBegin("spriteSheetEdSheet", new Vector2(0, 0), new Vector2(1.0, 1.0));
+            sheetEdPanel.ListBegin("spriteSheetEdSheet", new Vector2(0, 0), new Vector2(1.0, 1.0));
 
             AffineTransform prevTrans = g.getTransform();
             Vector2 imagePos = new Vector2(-this.sslImage.getWidth(null) / 2.0, -this.sslImage.getHeight(null) / 2.0);
-            boolean hovering = Vector2.AABBContainsPoint(ssEditor.position, ssEditor.size, Game.worldMousePos);
+            boolean hovering = Vector2.AABBContainsPoint(sheetEdPanel.position, sheetEdPanel.size, Game.worldMousePos);
 
             // Update smooth zoom
             this.sslZoom = Vector2.lerpFRI(this.sslZoom, this.sslZoomTarget, 0.99, Game.deltaTime);
 
             // Apply transformations
             g.translate(this.sslScroll.x, this.sslScroll.y);
-            g.translate(ssEditor.position.x + ssEditor.size.x / 2.0, ssEditor.position.y + ssEditor.size.y / 2.0);
+            g.translate(sheetEdPanel.position.x + sheetEdPanel.size.x / 2.0, sheetEdPanel.position.y + sheetEdPanel.size.y / 2.0);
             g.scale(this.sslZoom, this.sslZoom);
 
             AffineTransform currentTransform = g.getTransform();
@@ -429,13 +429,13 @@ class TileMapEditor {
 
             g.setTransform(prevTrans);
 
-            ssEditor.ListEnd();
+            sheetEdPanel.ListEnd();
         } else {
-            ssEditor.EntryBegin("Error: " + this.sslError);
-            ssEditor.EntryEnd();
+            sheetEdPanel.EntryBegin("Error: " + this.sslError);
+            sheetEdPanel.EntryEnd();
         }
 
-        ssEditor.End();
+        sheetEdPanel.End();
     }
 
     private double ssDisplayZoom = 17.0;
@@ -478,20 +478,33 @@ class TileMapEditor {
     }
     
     Panel sheetsPanel = new Panel();
-    Panel layers = new Panel();
+    Panel layersPanel = new Panel();
     Panel tools = new Panel();
 
-    
-    String[] toolButtons = {"Select", "Paint", "Erase", "Random Selection"};
-    String currentTool = null;
+    String[] toolButtons = {"Select", "Paint"};
+    String[] toolButtonsWhileSelected = {"Select", "Fill", "Delete"};
+    String currentTool = "Select";
+
+    private boolean mapCanSelectBlank = false;
+    private double paintBrushRadius = 1;
+    private double paintBrushStrokeChance = 100;
+    private boolean paintBrushRandomTiles = false;
+    private boolean paintBrushIsEraser = false;
+    private boolean paintBrushCanPaintBlankTiles = true;
+    private Vector2 mapSelectionMouseStart = null;
 
     public void Draw(Graphics2D g) throws NoninvertibleTransformException {
+        sheetEdPanel.disabled = false;
+        sheetsPanel.disabled = false;
+        layersPanel.disabled = false;
+        tools.disabled = false;
+
         Panel.context = "Editor";        
 
         if (this.map != null) {
             for (int y = 0; y < this.map.height; y++) {
                 for (int x = 0; x < this.map.height; x++) {
-                    Color tileOutlineColor = new Color(175, 50, 200, 40);
+                    Color tileOutlineColor = new Color(100, 100, 100, 40);
 
                     Vector2 position = this.map.LocalToWorldVectorScalar(new Vector2(x, y));
                     Vector2 tileSize = this.map.LocalToWorldVectorScalar(new Vector2(1, 1));
@@ -501,71 +514,173 @@ class TileMapEditor {
                 }
             }
             if (this.currentLayer != null) {
+                Rectangle selectionRectangle = new Rectangle();
+
+                if (Game.IsMousePressed(MouseEvent.BUTTON3)) {
+                    this.mapSelection.clear();
+                }
+                if (this.currentTool.equals("Select") && Game.IsMousePressed(MouseEvent.BUTTON1)) {
+                    if (this.mapSelectionMouseStart == null) {
+                        mapSelectionMouseStart = Game.worldMousePos.scale(1.0);
+                    }
+                } else if (Game.IsMouseReleased(MouseEvent.BUTTON1)) {
+                    this.mapSelectionMouseStart = null;
+                }
+
+                if (this.mapSelectionMouseStart != null) {
+                    // Calculate the initial rectangle with potentially negative width/height
+                    int startX = (int) this.mapSelectionMouseStart.x;
+                    int startY = (int) this.mapSelectionMouseStart.y;
+                    int endX = (int) Game.worldMousePos.x;
+                    int endY = (int) Game.worldMousePos.y;
+
+                    // Normalize the rectangle to ensure positive width and height
+                    int normalizedX = Math.min(startX, endX);
+                    int normalizedY = Math.min(startY, endY);
+                    int normalizedWidth = Math.abs(endX - startX) + 2;
+                    int normalizedHeight = Math.abs(endY - startY) + 2; // Add one or two to always select
+
+                    // Set the normalized rectangle
+                    selectionRectangle.setBounds(normalizedX, normalizedY, normalizedWidth, normalizedHeight);
+
+                    this.mapSelection.clear();
+                }
+
+                g.setColor(new Color(99, 134, 224, 100));
+                g.fillRect(selectionRectangle.x, selectionRectangle.y, selectionRectangle.width, selectionRectangle.height);
+                g.drawRect(selectionRectangle.x, selectionRectangle.y, selectionRectangle.width-1, selectionRectangle.height-1); // Border
+
                 for (Tile t : this.currentLayer.tiles) {
-                    if (t.IsNull()) continue;
-    
+                    boolean isNull = t.IsNull();
+
                     Color tileOutlineColor = new Color(60, 106, 171, 190);
                     Rectangle tileRectangle = new Rectangle();
-    
-                    boolean drawOutline = true;
-                    boolean hoveringTile = false;
-                    boolean selected = (this.sslSelection.indexOf(t) != -1);
-                    boolean lastSelected = this.sslSelectedKeyTile == t;
-    
-                    Vector2 position = this.map.LocalToWorldVectorScalar(new Vector2(t.x, t.y));
+                    
+                    Vector2 tilePosition = this.map.LocalToWorldVectorScalar(new Vector2(t.x, t.y));
                     Vector2 tileSize = this.map.LocalToWorldVectorScalar(new Vector2(t.w, t.h));
-    
-                    tileRectangle.x = (int)(position.x);
-                    tileRectangle.y = (int)(position.y);
+                    
+                    tileRectangle.x = (int)(tilePosition.x);
+                    tileRectangle.y = (int)(tilePosition.y);
                     tileRectangle.width = (int)(tileSize.x);
                     tileRectangle.height = (int)(tileSize.y);
-    
-                    if (tileRectangle.contains(new Point((int)Game.worldMousePos.x, (int)Game.worldMousePos.y))) {
-                        tileOutlineColor = new Color(80, 150, 250);
-                        hoveringTile = true;
-                        drawOutline = true;
+                    
+                    if (tileRectangle.intersects(selectionRectangle) || selectionRectangle.intersects(tileRectangle)) {
+                        if ((isNull && this.mapCanSelectBlank) || (!isNull)) {
+                            this.mapSelection.add(t);
+                        } 
                     }
-    
+                    boolean drawOutline = true;
+                    boolean selected = (this.mapSelection.indexOf(t) != -1);
+
+                    if (this.currentTool.equals("Paint")) {
+                        Vector2 roundedToTileMousePos = this.map.WorldToLocalVector(Game.mousePos);
+                        
+                        roundedToTileMousePos.x = Math.floor(roundedToTileMousePos.x);
+                        roundedToTileMousePos.y = Math.floor(roundedToTileMousePos.y);
+                        
+                        roundedToTileMousePos = thias.map.LocalToWorldVectorPositional(roundedToTileMousePos).add(tileSize.scale(0.5));
+                        
+                        Vector2 tileCentre = tilePosition.add(tileSize.scale(0.5));
+                        double distance = tileCentre.distance(roundedToTileMousePos);
+                        
+                        if (!Vector2.AABBContainsPoint(tools.windowPosition, tools.windowSize, Game.worldMousePos)
+                                            && distance < tileSize.magnitude()/2.0*(Math.floor(this.paintBrushRadius))) {
+                            if ((isNull && this.paintBrushCanPaintBlankTiles) || (!isNull)) {
+                                tileOutlineColor = this.paintBrushIsEraser ? new Color(196, 49, 78) : new Color(49, 196, 103);
+                                drawOutline = true;
+
+                                if (Game.IsMouseDown(MouseEvent.BUTTON1)) {
+                                    // Place tile
+                                    if (this.paintBrushIsEraser) {
+                                        t.Clear();
+                                    } else {
+                                        double strokeChance = Math.random();
+                                        if (strokeChance <= Math.pow(this.paintBrushStrokeChance/100.0, 3.f)) {
+                                            if (!this.paintBrushRandomTiles) {
+                                                if (this.sslSelectedKeyTile != null) {
+                                                    t.Set(this.sslSelectedKeyTile);
+                                                }
+                                                if (this.sslSelection.size() > 1) {
+                                                    t.Set(this.sslSelection.get(0));
+                                                }
+                                            } else {
+                                                if (this.sslSelection.size() > 2) {
+                                                    int randomTileIndex = (int)(Math.random() * this.sslSelection.size());
+                                                    Tile randomTile = this.sslSelection.get(randomTileIndex);
+                                                    t.Set(randomTile);
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        if (tileRectangle.contains(new Point((int)Game.worldMousePos.x, (int)Game.worldMousePos.y))) {
+                            tileOutlineColor = new Color(80, 150, 250);
+                            drawOutline = true;
+                        }
+                    }
+
+                    if (!drawOutline && isNull) continue;
+                    
                     if (selected) {
-                        tileOutlineColor = new Color(59, 62, 219);
+                        tileOutlineColor = Color.getHSBColor(223.f/360.f, (26.f + (float)Math.sin(4.0 * Game.now()) * 100.f)/360.f, 300.f/360.f);
                         drawOutline = true;
                     }
     
                     if (drawOutline) {
                         g.setColor(tileOutlineColor);
-                        g.setStroke(new BasicStroke((hoveringTile || lastSelected) ? 0.6f : 0.25f));
+                        g.setStroke(new BasicStroke(selected ? 0.6f : 0.25f));
                         GG.drawRect(tileRectangle.x, tileRectangle.y, tileRectangle.width, tileRectangle.height);
                     }
                 }
             }
         }
 
-        tools.Begin(g, new Vector2(800, 100), new Vector2(400, 100));
+        tools.Begin(g, new Vector2(-800, 100), new Vector2(400, 300));
         tools.Name("Tools");
 
         if (this.currentLayer != null && Game.IsMouseDown(MouseEvent.BUTTON1)) {
-            if (this.currentTool == "Paint") {
-                if (this.sslSelectedKeyTile != null) {
-                    this.map.SetTileAtWorldPosition(Game.worldMousePos, this.sslSelectedKeyTile.Clone(), this.currentLayer);
+            switch (this.currentTool) {
+                case "Paint": {
+                    if (this.sslSelectedKeyTile != null) {
+                        // this.map.SetTileAtWorldPosition(Game.worldMousePos, this.sslSelectedKeyTile.Clone(), this.currentLayer);
+                    }
+                } break;
+
+                case "Random Selection": {
+                    if (this.sslSelection.size() > 1) {
+                        int randomIndex = (int)(Math.random() * this.sslSelection.size());
+                        Tile randomTile = this.sslSelection.get(randomIndex);
+                        // this.map.SetTileAtWorldPosition(Game.worldMousePos, randomTile, this.currentLayer);
+                    }
+                } break;
+
+                case "Erase": {
+                    // this.map.ClearTileAtWorldPosition(Game.worldMousePos, this.currentLayer);
+                } break;
+
+                case "Fill": {
+                    // if (this.sslSelectedKeyTile != null) {
+                    //     for (Tile t : this.mapSelection) {
+                    //         t.w = this.sslSelectedKeyTile.w;
+                    //         t.h = this.sslSelectedKeyTile.h;
+                    //         t.textureIndex = this.sslSelectedKeyTile.textureIndex;
+                    //         t.textureSheet = this.sslSelectedKeyTile.textureSheet;
+                    //     }
+                    // }
                 }
-            } else if (this.currentTool == "Random Selection") {
-                if (this.sslSelection.size() > 1) {
-                    int randomIndex = (int)(Math.random() * this.sslSelection.size());
-                    Tile randomTile = this.sslSelection.get(randomIndex);
-                    this.map.SetTileAtWorldPosition(Game.worldMousePos, randomTile, this.currentLayer);
-                }
-            } else if (this.currentTool == "Erase") {
-                this.map.ClearTileAtWorldPosition(Game.worldMousePos, this.currentLayer);
             }
         }
 
-        tools.ListBegin("Tools", new Vector2(), new Vector2(1.0, 1.0));
-            tools.FlowLayoutBegin();
-
-            for (String tool : toolButtons) {
-                String text = tool;
-
-                Rectangle buttonDims = tools.CalculateButtonDims(text, new Vector2(), new Vector2());
+        tools.ListBegin("Tools", new Vector2(), new Vector2(1.0, 41.0));
+        tools.FlowLayoutBegin();
+        
+        for (String tool : (this.mapSelection.size() > 0 ? this.toolButtonsWhileSelected : toolButtons)) {
+            String text = tool;
+            
+            Rectangle buttonDims = tools.CalculateButtonDims(text, new Vector2(), new Vector2());
                 Vector2 buttonPosition = tools.FlowLayoutAdd(new Vector2(buttonDims.width, buttonDims.height));
                 
                 tools.nextButtonHighlight = tool == this.currentTool;
@@ -573,77 +688,128 @@ class TileMapEditor {
                 if (tools.Button(text, buttonPosition, new Vector2(buttonDims.width, buttonDims.height))) {
                     // Its been clicked
                     this.currentTool = tool;
+                    
+                    if (tool.equals("Select")) {
+                        this.mapSelectionMouseStart = null;
+                        this.mapSelection.clear();
+                    }
                 }
             }
-
+            
             tools.FlowLayoutEnd();
-        tools.ListEnd();
+            tools.ListEnd();
+            
+            tools.EntryBegin("Properties");
+            tools.EntryEnd();
+            tools.ListBegin("Tools Properties", new Vector2(), new Vector2(1.0, 1.0));
+                if (this.currentTool.equals("Select")) {
+                    tools.EntryBegin("Blank Tiles Selectable");
+                    tools.nextButtonHighlight = this.mapCanSelectBlank;
+                    if (tools.EntryButton(this.mapCanSelectBlank ? "Yes" : "No")) {
+                        this.mapCanSelectBlank = !this.mapCanSelectBlank;
+                    }
+                    tools.EntryEnd();
+                } else if (this.currentTool.equals("Paint")) {
+                    tools.EntryBegin("Brush Radius");
+                    this.paintBrushRadius = tools.EntrySlider(this.paintBrushRadius, 1.0, 15.0);
+                    tools.EntryEnd();
 
-        tools.End();
+                    tools.EntryBegin("Brush Stroke Chance");
+                    this.paintBrushStrokeChance = tools.EntrySlider(this.paintBrushStrokeChance, 0.0, 100.0);
+                    tools.EntryEnd();
 
-        if (this.currentTool == "Paint") {
-            layers.disabled = true;
-            sheetsPanel.disabled = true;
+                    tools.EntryBegin("Brush Pick Random");
+                    tools.nextButtonHighlight = this.paintBrushRandomTiles;
+                    if (tools.EntryButton(this.paintBrushRandomTiles ? "Yes" : "No")) {
+                        this.paintBrushRandomTiles = !this.paintBrushRandomTiles;
+                    }
+                    tools.EntryEnd();
+
+                    tools.EntryBegin("Erase Mode");
+                    tools.nextButtonHighlight = this.paintBrushIsEraser;
+                    if (tools.EntryButton(this.paintBrushIsEraser ? "Yes" : "No")) {
+                        this.paintBrushIsEraser = !this.paintBrushIsEraser;
+                    }
+                    tools.EntryEnd();
+
+                    tools.EntryBegin("Can Paint on Blank");
+                    tools.nextButtonHighlight = this.paintBrushCanPaintBlankTiles;
+                    if (tools.EntryButton(this.paintBrushCanPaintBlankTiles ? "Yes" : "No")) {
+                        this.paintBrushCanPaintBlankTiles = !this.paintBrushCanPaintBlankTiles;
+                    }
+                    tools.EntryEnd();
+                }
+            tools.ListEnd();
+            
+            tools.End();
+            
+            if (this.currentTool.equals("Paint") || this.currentTool.equals("Erase")) {
+                layersPanel.disabled = true;
+                sheetsPanel.disabled = true;
+            sheetEdPanel.disabled = true;
         }
-
-        layers.Begin(g, new Vector2(800, 250), new Vector2(300, 300));
         
-        layers.Name("Layers");
+        layersPanel.Begin(g, new Vector2(tools.windowPosition.x, tools.windowPosition.y + tools.windowSize.y + 20), new Vector2(300, 300));
         
-        layers.EntryBegin("Layers");
-        if (layers.EntryButton("New")) {
+        layersPanel.Name("Layers");
+        
+        layersPanel.EntryBegin("Layers");
+        if (layersPanel.EntryButton("New")) {
             TileMapLayer newLayer = new TileMapLayer(map, map.width, map.height);
             
             newLayer.name = "Layer " + (++this.layerCount);
             this.currentLayer = newLayer;
+            this.mapSelection.clear();
 
             this.map.layers.add(newLayer);
         }
         
-        layers.nextButtonDisabled = (currentLayer == null);
-        if (layers.EntryButton("Delete")) {
+        layersPanel.nextButtonDisabled = (currentLayer == null);
+        if (layersPanel.EntryButton("Delete")) {
             this.map.layers.remove(this.currentLayer);
             if (this.map.layers.size() == 0) {
                 this.currentLayer = null;
+                this.mapSelection.clear();
             } else {
                 this.currentLayer = this.map.layers.get(this.map.layers.size()-1);
+                this.mapSelection.clear();
             }
         }
-        layers.nextButtonDisabled = (currentLayer == null);
-        if (layers.EntryButton("Rename")) {
+        layersPanel.nextButtonDisabled = (currentLayer == null);
+        if (layersPanel.EntryButton("Rename")) {
             // TODO: Rename layers
         }
-        layers.EntryEnd();
+        layersPanel.EntryEnd();
         
-        layers.ListBegin("Layers", new Vector2(), new Vector2(0, -40.0));   
+        layersPanel.ListBegin("Layers", new Vector2(), new Vector2(0, -40.0));   
             for (TileMapLayer layer : this.map.layers) {
                 if (layer == currentLayer) {
-                    layers.nextButtonHighlight = true;
+                    layersPanel.nextButtonHighlight = true;
                 }
-                if (layers.Button(layer.name, new Vector2(), new Vector2(1.0, 0.0))) {
+                if (layersPanel.Button(layer.name, new Vector2(), new Vector2(1.0, 0.0))) {
                     currentLayer = layer;
                 }
-                layers.LayoutVertBAdded(0.0);
+                layersPanel.LayoutVertBAdded(0.0);
             }
-        layers.ListEnd();
+        layersPanel.ListEnd();
 
         int currentIndex = this.map.layers.indexOf(this.currentLayer);
         
-        layers.nextButtonDisabled = (currentIndex == this.map.layers.size()-1);
-        if (layers.Button("Down", new Vector2(0.0, 0), new Vector2(0.5, 1.0))) {
+        layersPanel.nextButtonDisabled = (currentIndex == this.map.layers.size()-1);
+        if (layersPanel.Button("Down", new Vector2(0.0, 0), new Vector2(0.5, 1.0))) {
             this.map.layers.remove(this.currentLayer);
             map.layers.add(currentIndex + 1, this.currentLayer);
         }
         
-        layers.nextButtonDisabled = (currentIndex == 0);
-        if (layers.Button("Up", new Vector2(0.5, 0), new Vector2(0.5, 1.0))) {
+        layersPanel.nextButtonDisabled = (currentIndex == 0);
+        if (layersPanel.Button("Up", new Vector2(0.5, 0), new Vector2(0.5, 1.0))) {
             this.map.layers.remove(this.currentLayer);
             map.layers.add(currentIndex - 1, this.currentLayer);
         }
-        layers.End();
+        layersPanel.End();
             
             
-        sheetsPanel.Begin(g, new Vector2(1100, 500), new Vector2(300, 300));
+        sheetsPanel.Begin(g, new Vector2(layersPanel.windowPosition.x, layersPanel.windowPosition.y + layersPanel.windowSize.y + 20), new Vector2(300, 300));
         sheetsPanel.Name("Sprite Sheets");
             
         sheetsPanel.EntryBegin("Sheets");
@@ -787,7 +953,7 @@ class TileMapEditor {
 
             position = sheetsPanel.FlowLayoutAdd(buttonSize);
             sheetsPanel.nextButtonAbsPos = true;
-            sheetsPanel.nextButtonDisabled = (this.currentSelectedSheet == null || this.sslVisible == true);
+            sheetsPanel.nextButtonDisabled = (this.currentSelectedSheet == null || (!(this.sslVisible == true && this.sslLeftPanelOpen == false) && (this.sslVisible)));
             if (sheetsPanel.Button("Open", position, buttonSize)) {
                 this.sslReset();
                 this.sslIsNew = false;
@@ -804,7 +970,7 @@ class TileMapEditor {
         if (sslVisible) {
             SpriteSheetLoader(g);
         } else {
-            this.layers.disabled = false;
+            this.layersPanel.disabled = false;
             this.sheetsPanel.disabled = false;
         }
     }

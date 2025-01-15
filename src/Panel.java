@@ -314,7 +314,7 @@ class Panel {
         sliderSize.x -= (maxTextWidth + minTextWidth);
         sliderPos.x += minTextWidth;
 
-        Vector2 dotPosition = new Vector2(sliderPos.x + sliderSize.x*currentPercent, sliderPos.y + sliderThickness/2.0 - dotSize/2.0);
+        Vector2 dotPosition = new Vector2(sliderPos.x + sliderSize.x*currentPercent - dotSize/2.0, sliderPos.y + sliderThickness/2.0 - dotSize/2.0);
 
         g.setColor(BUTTON_BG);
         GG.fillRoundRect(sliderPos.x, sliderPos.y, sliderSize.x, sliderSize.y, sliderThickness, sliderThickness);

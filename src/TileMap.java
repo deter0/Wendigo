@@ -279,6 +279,13 @@ class Tile {
         }
     }
 
+    public void Set(Tile newTile) {
+        this.w = newTile.w;
+        this.h = newTile.h;
+        this.textureIndex = newTile.textureIndex;
+        this.textureSheet = newTile.textureSheet;
+    }
+
     public void SaveToFile(FileWriter fw, TileMap map) throws IOException {
         fw.write("__TILE__\n");
         fw.write("x=" + this.x + "\n");
@@ -579,11 +586,11 @@ class TileMap {
         return n;
     }
 
-    public Vector2 WorldToLocalVector(Vector2 localVector) {
+    public Vector2 WorldToLocalVector(Vector2 worldVector) {
         Vector2 n = new Vector2();
         
-        n.x = localVector.x / TileMap.RENDERSCALE;
-        n.y = localVector.y / TileMap.RENDERSCALE;
+        n.x = worldVector.x / TileMap.RENDERSCALE - this.renderOffset.x;
+        n.y = worldVector.y / TileMap.RENDERSCALE - this.renderOffset.y;
         // n = n.ApplyTransformation(this.transform);
 
         return n;
