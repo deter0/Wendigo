@@ -262,6 +262,8 @@ class Tile {
     public Vector2 collidorPos = new Vector2();
     public Vector2 collidorSize = new Vector2();
 
+    public double frictionCoefficient = 1.0;
+
     protected ArrayList<GameObject> objectsOnTile = new ArrayList<>();
 
     public void LoadFromFile(BufferedReader br, TileMap map) throws IOException {
@@ -288,7 +290,6 @@ class Tile {
         }
 
         if (collidable != null && collidable.equals("true")) {
-            new Message("Read collidable: " + this.collidorPos + ", " + this.collidorSize);
             this.collidable =  true;
         } else {
             this.collidable = false;

@@ -61,29 +61,36 @@ public class Enemy extends GameObject {
         AffineTransform transform = new AffineTransform();
         
         // Translate to center the image
-        transform.translate(x - (RADIUS * scaleFactor), y - (RADIUS * scaleFactor));
+        transform.translate(x, y);
+        transform.translate(-20, -currentFrame.getHeight()/2.0);
         
         // Check if the image should be flipped
-        if (x > Game.player.x) {
-            // Flip the image horizontally from its center
-            transform.translate(RADIUS * scaleFactor, 0); // Move origin for horizontal flip
-            transform.scale(-scaleFactor, scaleFactor);  // Flip horizontally and scale
-            transform.translate(-RADIUS * scaleFactor, 0); // Move origin back
-            direction = true;
-        } else if (x < Game.player.x) {
-            // Normal scaling
-            transform.scale(scaleFactor, scaleFactor);
-            direction = false;
-        } else if (x == Game.player.x && !direction) {
-            // Normal scaling
-            transform.scale(scaleFactor, scaleFactor);
-        } 
-        else if (x == Game.player.x && direction) {
-            // Flip the image horizontally from its center
-            transform.translate(RADIUS * scaleFactor, 0); // Move origin for horizontal flip
-            transform.scale(-scaleFactor, scaleFactor);  // Flip horizontally and scale
-            transform.translate(-RADIUS * scaleFactor, 0); // Move origin back
+        // if (x > Game.player.x) {
+        //     // Flip the image horizontally from its center
+        //     transform.translate(RADIUS * scaleFactor, 0); // Move origin for horizontal flip
+        //     transform.scale(-scaleFactor, scaleFactor);  // Flip horizontally and scale
+        //     transform.translate(-RADIUS * scaleFactor, 0); // Move origin back
+        //     direction = true;
+        // } else if (x < Game.player.x) {
+        //     // Normal scaling
+        //     transform.scale(scaleFactor, scaleFactor);
+        //     direction = false;
+        // } else if (x == Game.player.x && !direction) {
+        //     // Normal scaling
+        //     transform.scale(scaleFactor, scaleFactor);
+        // } 
+        // else if (x == Game.player.x && direction) {
+        //     // Flip the image horizontally from its center
+        //     transform.translate(RADIUS * scaleFactor, 0); // Move origin for horizontal flip
+        //     transform.scale(-scaleFactor, scaleFactor);  // Flip horizontally and scale
+        //     transform.translate(-RADIUS * scaleFactor, 0); // Move origin back
+        // }
+        direction = x > Game.player.x;
+        if (direction) {
+            transform.translate(currentFrame.getWidth() * scaleFactor, 0);
+            transform.scale(-1.0, 1.0);
         }
+        transform.scale(scaleFactor, scaleFactor);
         
         
         g.setColor(Color.RED);
@@ -91,11 +98,17 @@ public class Enemy extends GameObject {
         g.fillRect(Game.player.x, Game.player.y, 10, 10);
         // Draw the image
         g.drawImage(currentFrame, transform, null);
+
+        size.x = currentFrame.getWidth() * 0.8;
+        size.y = currentFrame.getHeight();
     }
     
     
 
     public void Update(double deltaTime) {
+        x = (int)position.x;
+        y = (int)position.y;
+
         attackTimer += deltaTime;
         frameTimer += deltaTime;
 
@@ -133,6 +146,9 @@ public class Enemy extends GameObject {
 
         x += targetDX * SPEED * deltaTime;
         y += targetDY * SPEED * deltaTime;
+
+        position.x = x;
+        position.y = y;
     }
 
     public void setTargetDirection(double dx, double dy) {

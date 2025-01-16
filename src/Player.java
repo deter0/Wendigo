@@ -22,6 +22,8 @@ public class Player extends GameObject {
     private final int FRAME_DELAY = 100; // 100ms between frames
     private boolean isMoving = false;
 
+    private double scale = 2.5;
+
     // Afterimage data
     private ArrayList<AfterimageData> afterimages = new ArrayList<>();
     private final int AFTERIMAGE_LIFESPAN = 300; // Milliseconds
@@ -33,7 +35,7 @@ public class Player extends GameObject {
             // Load idle sprite sheet
             idleSpriteSheet = ImageIO.read(new File("res/PlayerIdle.png"));
             frameWidth = idleSpriteSheet.getWidth() / 5; // 5 columns
-            frameHeight = idleSpriteSheet.getHeight(); // 1 row
+            frameHeight = 48;//idleSpriteSheet.getHeight(); // 1 row
             idleFrames = new BufferedImage[5];
             for (int i = 0; i < 5; i++) {
                 idleFrames[i] = idleSpriteSheet.getSubimage(i * frameWidth, 0, frameWidth, frameHeight);
@@ -81,9 +83,14 @@ public class Player extends GameObject {
         AffineTransform transform = new AffineTransform();
 
         transform.translate(x, y); // Regular position
-        transform.scale(2.5, 2.5); // Scale up
+        transform.translate(-40, 0);
+
         transform.scale(this.reflect ? -1.0 : 1.0, 1.0);
-        transform.translate(-frameWidth/2.0, -frameHeight/2.0);
+        if (this.reflect) {
+            transform.translate(-frameWidth*scale, 0);
+        }
+
+        transform.scale(scale, scale); // Scale up
 
         // Safeguard against null or invalid frames
         if (currentFrames == null) {
@@ -111,6 +118,9 @@ public class Player extends GameObject {
     }
 
     public void Update(double deltaTime) {
+        x = (int)position.x;
+        y = (int)position.y;
+
         dx = 0;
         dy = 0;
 
@@ -160,9 +170,9 @@ public class Player extends GameObject {
         // Switch between animations based on movement
         currentFrames = isMoving ? runFrames : idleFrames;
 
-        double visualHeight = this.frameHeight * 1.7;
-        this.position = new Vector2(x - this.frameWidth/2.0, y-visualHeight/2.0);
-        this.size = new Vector2(this.frameWidth, visualHeight);
+        this.position = new Vector2(x, y);
+        // this.velocity = new Vector2(dx * speed, dy * speed);
+        this.size = new Vector2(this.frameWidth * scale * 0.4, this.frameHeight * scale * 0.8);
     }
 
     // Data structure for afterimages

@@ -76,6 +76,9 @@ public class Game extends JPanel implements Runnable, KeyListener {
     public static double FPS;
     public static double deltaTime;
 
+    // Physics stuff
+    public static Physics physics = new Physics();
+
     // All fonts
     public static Font font16;
     public static Font font32;
@@ -184,12 +187,24 @@ public class Game extends JPanel implements Runnable, KeyListener {
         this.parentJFrame.setExtendedState( this.parentJFrame.getExtendedState()|JFrame.MAXIMIZED_BOTH );
     }
     
+    GameObject testObject;
+
     public void Update(double deltaTime) {
-        if (Game.IsKeyPressed(KeyEvent.VK_N)) {
-            new Message("Hello, World! this is a message! Adipisicing id et Lorem et dolore magna ad dolor est.", 10);
+        if (testObject == null) {
+            testObject = new GameObject();
+            testObject.position = new Vector2(200, -100);
+            testObject.size = new Vector2(100, 100);
+            testObject.velocity = new Vector2(10, 0);
         }
-        worldTransform = new AffineTransform();
+
+        Game.physics.currentMap = testMap;
         
+        Game.physics.physicsObjects.add(testObject);
+        Game.physics.physicsObjects.add(player);
+        Game.physics.physicsObjects.add(badguy);
+
+        /* Essentially the camera. */
+        worldTransform = new AffineTransform();
         worldTransform.translate(Game.WINDOW_WIDTH/2.0 - player.frameWidth / 2.0,
                                  Game.WINDOW_HEIGHT/2.0 - player.frameHeight / 2.0);
         
@@ -205,13 +220,9 @@ public class Game extends JPanel implements Runnable, KeyListener {
         Game.worldMousePos = new Vector2(worldMousePoint.x, worldMousePoint.y);
         
         player.Update(deltaTime);
+
         badguy.Update(deltaTime);
-        //badguy2.Update(deltaTime);
-        //badguy3.Update(deltaTime);
-        //badguy4.Update(deltaTime);
-        //badguy5.Update(deltaTime);
-        //badguy6.Update(deltaTime);
-        //badguy7.Update(deltaTime);
+
         gun.Update(deltaTime);
         
         if (this.editorEnabled) {
@@ -224,6 +235,8 @@ public class Game extends JPanel implements Runnable, KeyListener {
                 this.editor = new TileMapEditor(this.testMap);
             }
         }
+
+        Game.physics.Update(deltaTime);
         // System.out.println("Game tick! At " + 1.0/deltaTime + "TPS");
     }
 
@@ -256,17 +269,12 @@ public class Game extends JPanel implements Runnable, KeyListener {
         testMap.ResetResponsiblities();
 
         testMap.RenderResponsibly(player);
+        testMap.RenderResponsibly(badguy);
         //draw the weapon projectiles
         gun.Draw(g);
 
         //draw the ennemy
-        badguy.Draw(g);
-        //badguy2.Draw(g);
-        //badguy3.Draw(g);
-        //badguy4.Draw(g);
-        //badguy5.Draw(g);
-        //badguy6.Draw(g);
-       // badguy7.Draw(g);
+        // badguy.Draw(g);
 
         if (this.editorEnabled) {
             try {
@@ -280,9 +288,12 @@ public class Game extends JPanel implements Runnable, KeyListener {
             }
         }
 
+        Game.physics.Draw(g);
+
         g.setTransform(defaultTransform);
-        this.DrawFPS(g);
         
+        this.DrawFPS(g);
+
         Panel.Draw(g);
     }
 
