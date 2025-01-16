@@ -4,63 +4,171 @@ import java.awt.event.*;
 import java.util.ArrayList;
 import java.util.HashMap;
 
+/*
+ * Message class used for notification that pop up.
+ */
+class Message {
+    protected String message;
+    protected double timeOut;
+    protected boolean isError;
+
+    protected double deadLine;
+    
+    private void Init() {
+        this.deadLine = Game.now() + timeOut;
+
+        if (this.isError) {
+            System.err.println("[ERROR]: " + message);
+        } else {
+            System.out.println("[LOG]: " + message);
+        }
+
+        // Add it to currently displayed messages
+        Panel.messages.add(this);
+    }
+
+    public Message(String message, double timeOut) {
+        this.message = message;
+        this.timeOut = timeOut;
+        Init();
+    }
+
+    public Message(String message, double timeOut, boolean error) {
+        this.message = message;
+        this.timeOut = timeOut;
+        this.isError = error;
+        Init();
+    }
+
+    public Message(String message) {
+        this.message = message;
+        this.timeOut = 7.5;
+        Init();
+    }
+
+    public Message(String message, boolean error) {
+        this.message = message;
+        this.timeOut = 7.5;
+        this.isError = error;
+        Init();
+    }
+}
+
 class Panel {
+    /*
+     * Basic Colours we use.
+     */
     static Color PANEL_BG = new Color(0x2e2e2e);
     static Color BUTTON_BG = new Color(0x404040);
     static Color BUTTON_HOV_BG = new Color(0x666666);
     static Color BUTTON_DOWN_BG = new Color(0x252525);
     static Color BUTTON_BORDER = new Color(0x202020);
     static Color BUTTON_HILI_BG = new Color(0x3b8c4d);
+    /* 
+     * Some default settings. Can be modified.
+     */
     static double PADDING = 6.0;
     static double LINE_HEIGHT = TileMapEditor.ED_FONT_SIZE + 2*PADDING;
     
+    /*
+     * Currently displayed messages. Logic is handled in Panel's static Draw(Graphics2D g).. function.
+     */
+    public static ArrayList<Message> messages = new ArrayList<>();
+
+    /*
+     * Where the window currently is.
+     */
     public Vector2 windowPosition = null;
     public Vector2 windowSize = null;
 
+    /*
+     * Internal stuff used for layouting.
+     */
     public Vector2 position = null;
     public Vector2 size = null;
 
     private Graphics2D g;
 
+    /*
+     * Context or "Title" of windows.
+     */
     public static String context = null;
     public boolean open = true;
 
+    /*
+     * Flags for next button user requests.
+     * TODO: Merge these flags into an integer and use bit masking.
+     */
     public boolean nextButtonDisabled = false;
     public boolean nextButtonHighlight = false;
     public boolean nextButtonAbsPos = false;
 
-
+    /*
+     * Keeping track of the scroll state of each list, as we are
+     * immediate mode we cannot easily do that.
+     */
     private static HashMap<String, Double> scrolls = new HashMap<>();
     private static HashMap<String, Double> scrollsTarget = new HashMap<>();
 
+    /*
+     * Stack of graphics clippings, for when we have, say, nested lists.
+     */
     private ArrayList<Shape> clipsStack = new ArrayList<>();
 
+    /*
+     * Resizing panel logic.
+     * TODO: Reizing panels doesn't work properly on some corners.
+     */
     private boolean isResizing = false;
     private Vector2 resizingStartMousePos;
     private Vector2 resizingStartPrevSize;
     private Vector2 resizingStartPrevPos;
     private Vector2 resizingRestriction = new Vector2(1.0);
     private boolean flipResizingAnchor = true;
+
+    /*
+     * Disable this panel.
+     */
     public boolean disabled = false;
 
+    /*
+     * Are we dragging the panel.
+     */
     private boolean isMoving = false;
+
+    /*
+     * Dragging logic.
+     */
     private Vector2 movementPrevPos;
     private Vector2 movementStartMousePos;
 
-    private static String inputContext = null;
+    /*
+     * Variables for the user input pop up.
+     */
+    private static String inputPrompt = null; // The prompt
+    
+    /*
+     * Max size we accept the input to be.
+     */
     public static int inputMaxSize = 128;
     private static boolean inputOpen = false;
     private static boolean inputJustClosed = false;
-    protected static String inputInput = null;
+    protected static String inputInput = null; // The text
     
+    /* For anything we need to draw on top of everything, we defer it to this function.
+     * This function should usually be called towards the end of your entire paint job.
+     */
     public static void Draw(Graphics2D g) {
-        if (Panel.inputOpen) {
+        if (Panel.inputOpen) { // Display input field if it's active.
+            // Temporarily block all input from game.
             if (!Game.inputBlockers.contains("PanelInputField"))
                 Game.inputBlockers.add("PanelInputField");
             
+            // Dim screen
             g.setColor(new Color(0, 0, 0, 100));
             g.fillRect(0, 0, Game.WINDOW_WIDTH, Game.WINDOW_HEIGHT);
             
+            // Visual rectangle
             Rectangle inputRectangle = new Rectangle();
             inputRectangle.width = Game.WINDOW_WIDTH/4 + 200;
             inputRectangle.height = 80;
@@ -68,62 +176,133 @@ class Panel {
             inputRectangle.x = (int)(Game.WINDOW_WIDTH/2.0 - inputRectangle.width/2.0);
             inputRectangle.y = (int)(Game.WINDOW_HEIGHT/2.0 - inputRectangle.height/2.0);
             
+            // Draw it
             g.setColor(new Color(24, 24, 24));
             GG.fillRect(inputRectangle);
             
             g.setColor(Color.WHITE);
 
+            // Set font and get font metrics.
             g.setFont(TileMapEditor.ED_FONT);
             FontMetrics fm = g.getFontMetrics();
 
+            // Calculate layout stuff
             int y = (int)(inputRectangle.y + Panel.PADDING + fm.getHeight());
             int textWidth = fm.stringWidth(Game.textInputBuffer);
 
+            // Trim the buffer if it's too long.
             if (Game.textInputBuffer.length() >= inputMaxSize) {
                 Game.textInputBuffer = Game.textInputBuffer.substring(0, inputMaxSize);
             }
 
-            g.drawString(inputContext, (int)(inputRectangle.x + Panel.PADDING), y);
+            // Draw the prompt
+            g.drawString(inputPrompt, (int)(inputRectangle.x + Panel.PADDING), y);
             y += 2*Panel.PADDING;
             
             g.setColor(new Color(48, 48, 48));
             g.fillRect(inputRectangle.x, y, inputRectangle.width, fm.getHeight()*2);
 
+            // Draw the current text
             g.setColor(new Color(200, 200, 200));
             g.drawString(Game.textInputBuffer, (int)(inputRectangle.x + Panel.PADDING), (int)(y + fm.getHeight()*1.25));
 
             y += fm.getHeight()*1.25;
 
+            // Blinking transparency of cursor.
             int value = (int)((Math.sin(10*Game.now())+1)*0.5*255);
             int x = (int)(inputRectangle.x + PADDING + textWidth);
 
+            // Draw the cursor
             g.setColor(new Color(255, 255, 255, value));
             g.drawLine(x, y+4, x, y - fm.getHeight()+4);
 
+            // Input field close condition
             if (Game.keysDown[KeyEvent.VK_ENTER] == true || Game.keysDown[KeyEvent.VK_ESCAPE] == true) {
                 System.out.println("Closing!");
-                Panel.inputContext = null;
+                Panel.inputPrompt = null;
                 inputInput = Game.textInputBuffer + ""; // Make a duplicate?  ¯\_(ツ)_/¯
                 Panel.inputOpen = false;
                 Panel.inputJustClosed = true;
             }
         } else {
-            Game.inputBlockers.remove("PanelInputField");
+            Game.inputBlockers.remove("PanelInputField"); // Stop blocking input
+        }
+
+        { /* Rendering the messages. */
+            g.setFont(TileMapEditor.ED_FONT);
+
+            int y = 4 * (int)Panel.PADDING;
+            FontMetrics fm = g.getFontMetrics();
+
+            double now = Game.now();
+
+            /* Delete Expired Messages */
+            Panel.messages.removeIf(n -> (now >= n.deadLine));
+
+            for (Message m : Panel.messages) {
+                final double messageFadeTime = 4.0;
+
+                int       messageWidth = fm.stringWidth(m.message);
+                Rectangle messageRectangle = new Rectangle();
+                double    alpha = 1.0;
+                
+                double timeRemaining = m.deadLine - now;
+
+                /* Save the original composite */
+                Composite originalComposite = g.getComposite();
+
+                messageRectangle.width = (int)(messageWidth + PADDING*2);
+                messageRectangle.height = (int)(fm.getMaxAscent() + PADDING*2);
+
+                messageRectangle.x = (Game.WINDOW_WIDTH/2 - messageRectangle.width/2);
+                messageRectangle.y = y;
+
+                if (timeRemaining < messageFadeTime) {
+                    double timeRemainingNormalized = (timeRemaining/messageFadeTime);
+                    alpha = timeRemainingNormalized;
+                }
+
+                /* Set everything transparent */
+                if (alpha < 1.f)
+                    g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, (float)alpha));
+
+
+                /* Background */
+                g.setColor(new Color(12, 12, 12));
+                GG.fillRect(messageRectangle);
+
+                /* Border */
+                g.setColor(new Color(64, 64, 64));
+                GG.drawRect(messageRectangle);
+
+                /* Draw message */
+                g.setColor(m.isError ? Color.RED : Color.LIGHT_GRAY);
+                g.drawString(m.message, (int)(messageRectangle.x + PADDING), (int)(messageRectangle.y + Panel.PADDING + fm.getMaxAscent()));
+                
+                /* Restore composite */
+                g.setComposite(originalComposite);
+
+                y += messageRectangle.height + Panel.PADDING;
+            }
         }
     }
 
+    /* Function to create an immediate input field
+     * Returns: True if the user inputting in the field is finished (Enter).
+     */
     public static boolean InputField(String context, String initialText) {
-        if (Panel.inputJustClosed) {
+        if (Panel.inputJustClosed) { // If it's closed now, we had it open. So return it's closed.
             Panel.inputJustClosed = false;
             return true;
-        }
-
-        if (Panel.inputContext == null) {
-            Panel.inputContext = context;
-            Panel.inputJustClosed = false;
-            Panel.inputInput = null;
-            Panel.inputOpen = true;
-            Game.textInputBuffer = initialText != null ? initialText : "";
+        } else {
+            // if it's not open open it.
+            if (Panel.inputPrompt == null) {
+                Panel.inputPrompt = context;
+                Panel.inputJustClosed = false;
+                Panel.inputInput = null;
+                Panel.inputOpen = true;
+                Game.textInputBuffer = initialText != null ? initialText : "";
+            }
         }
         
         return false;
