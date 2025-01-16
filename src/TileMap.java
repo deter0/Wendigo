@@ -301,6 +301,8 @@ class Tile {
     public int animNumFramesY = 1;
     public int animFPS = 15;
 
+    private int currentFrame = 0;
+
     public void LoadFromFile(BufferedReader br, TileMap map) throws IOException {
         int x = TileMap.readInt(br, "x");
         int y = TileMap.readInt(br, "y");
@@ -335,12 +337,16 @@ class Tile {
             this.collidable = false;
         }
 
-        if (animated == "True") {
+        if (animated != null && animated.equals("true")) {
+            System.out.println("Animated tile! " + animFPS + "," + animNumFramesX + "," + animNumFramesY);
             if (animFPS != null && animFramesX != null && animFramesY != null) {
+                this.animated = true;
                 this.animFPS = animFPS;
                 this.animNumFramesX = animFramesX;
                 this.animNumFramesY = animFramesY;
             }
+        } else {
+            this.animated = false;
         }
 
         TileMap.GoToEnd(br);
@@ -415,6 +421,7 @@ class Tile {
     }
 
     public Tile(int x, int y, SpriteSheet sheet, int textureIndex) {
+        this.Clear();
         this.x = x;
         this.y = y;
         this.textureSheet = sheet;
@@ -429,6 +436,10 @@ class Tile {
         this.collidable = false;
         this.collidorPos = new Vector2();
         this.collidorSize = new Vector2(1.0, 1.0);
+        this.animated = false;
+        this.animNumFramesX = 1;
+        this.animNumFramesY = 1;
+        this.animFPS = 15;
     }
 
     public boolean IsNull() {
@@ -484,12 +495,28 @@ class Tile {
         if (this.textureIndex == -1 || this.textureSheet == null) return;
 
         int tileSize = this.textureSheet.tileSize;
+
         int sx = this.textureIndex % this.textureSheet.numTilesX;
         int sy = this.textureIndex / this.textureSheet.numTilesX;
 
+        int sw = (tileSize*this.w);
+        int sh = (tileSize*this.h);
+        int frameOffsetX = 0;
+        int frameOffsetY = 0;
+
+        if (this.animated) {
+            this.currentFrame = (int)((Game.now() * this.animFPS) % (this.animNumFramesX * this.animNumFramesY));
+
+            frameOffsetX = (this.currentFrame % this.animNumFramesX);
+            frameOffsetY = 0;//(this.currentFrame / this.animNumFramesY);
+        }
+
+        sx = (sx+(frameOffsetX*this.w))*tileSize;
+        sy = (sy+(frameOffsetY*this.h))*tileSize;
+
         g.drawImage(this.textureSheet.GetImage(g),
                     (int)x, (int)y, (int)(x+w), (int)(y+h),
-                    sx*tileSize, sy*tileSize, (sx*tileSize)+(tileSize*this.w), (sy*tileSize)+(tileSize*this.h),
+                    sx, sy, sx+sw, sy+sh,
                     GG.COLOR_OPAQUE, null);
     }
 
