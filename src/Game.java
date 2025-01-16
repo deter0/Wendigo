@@ -185,6 +185,9 @@ public class Game extends JPanel implements Runnable, KeyListener {
     }
     
     public void Update(double deltaTime) {
+        if (Game.IsKeyPressed(KeyEvent.VK_N)) {
+            new Message("Hello, World! this is a message! Adipisicing id et Lorem et dolore magna ad dolor est.", 10);
+        }
         worldTransform = new AffineTransform();
         
         worldTransform.translate(Game.WINDOW_WIDTH/2.0 - player.frameWidth / 2.0,

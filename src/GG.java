@@ -45,7 +45,7 @@ public class GG {
     }
     
     public static void drawRect(Rectangle rect) {
-        GG.fillRect(rect.x, rect.y, rect.width, rect.height);
+        GG.drawRect(rect.x, rect.y, rect.width, rect.height);
     }
 
     public static void fillRect(Vector2 position, Vector2 size) {
