@@ -443,8 +443,6 @@ class TileMapEditor {
     private Vector2 sslMovMouseStart = null;
     private Vector2 sslMovInitialScroll = null;
 
-    private int layerCount = 1;
-
     public TileMapEditor(TileMap m) {
         this.map = m;
 
@@ -469,20 +467,57 @@ class TileMapEditor {
         }
     }
     
+    Panel sheetsPanel = new Panel();
+    Panel layersPanel = new Panel();
+    Panel tools = new Panel();
+    Panel layerProperties;
+
+    public void LayerPropertiesPanel(Graphics2D g) {
+        Vector2 panelSize = new Vector2(150, 200);
+
+        layerProperties.Begin(g, this.layersPanel.position.sub(new Vector2(panelSize.x + 20, 0)), panelSize);
+
+        layerProperties.Name("`" + this.currentLayer.name + "` Properties");
+        if (layerProperties.CloseButton()) {
+            this.layerProperties = null;
+            return;
+        }
+
+        layerProperties.ListBegin("Properties", new Vector2(0, Panel.PADDING), new Vector2(1.0, 1.0));
+            layerProperties.EntryBegin("Is Ground Layer");
+            layerProperties.nextButtonHighlight = this.currentLayer.isGroundLayer;
+            if (layerProperties.EntryButton(this.currentLayer.isGroundLayer ? "Yes" : "No")) {
+                if (!this.currentLayer.isGroundLayer) {
+                    for (TileMapLayer l : this.map.layers) {
+                        l.isGroundLayer = false;
+                    }
+                    this.currentLayer.isGroundLayer = true;
+                } else {
+                    this.currentLayer.isGroundLayer = false;
+                }
+            }    
+            layerProperties.EntryEnd();
+        layerProperties.ListEnd();
+
+        layerProperties.End();
+    }
+
     public void Update(double dt) {
         if (this.map != null) {
             if (Game.IsKeyPressed(KeyEvent.VK_S) && Game.IsKeyDown(KeyEvent.VK_CONTROL)) {
                 this.map.Save("./res/tempMapFile.wmap");
             }
+
+            if (Game.IsKeyPressed(KeyEvent.VK_Z) && Game.IsKeyDown(KeyEvent.VK_CONTROL)) {
+                this.map.LoadFromFile("./res/tempMapFile.wmap");
+                this.sslReset();
+                this.mapSelection.clear();
+                this.currentTool = "Select";
+            }
         }
     }
-    
-    Panel sheetsPanel = new Panel();
-    Panel layersPanel = new Panel();
-    Panel tools = new Panel();
 
-    String[] toolButtons = {"Select", "Paint"};
-    String[] toolButtonsWhileSelected = {"Select", "Fill", "Delete"};
+    String[] toolButtons = {"Select", "Paint", "Fill", "Delete"};
     String currentTool = "Select";
 
     private boolean mapCanSelectBlank = false;
@@ -499,27 +534,41 @@ class TileMapEditor {
         layersPanel.disabled = false;
         tools.disabled = false;
 
-        Panel.context = "Editor";        
+        Panel.context = "Editor";
+
+        if (this.layerProperties != null) {
+            this.LayerPropertiesPanel(g);
+        }
 
         if (this.map != null) {
+            if (this.currentLayer != null && !this.map.layers.contains(this.currentLayer)) {
+                this.currentLayer = null;
+            }
+
+            if (this.currentLayer == null) {
+                tools.disabled = true;
+            }
+
             for (int y = 0; y < this.map.height; y++) {
                 for (int x = 0; x < this.map.height; x++) {
                     Color tileOutlineColor = new Color(100, 100, 100, 40);
 
                     Vector2 position = this.map.LocalToWorldVectorScalar(new Vector2(x, y));
                     Vector2 tileSize = this.map.LocalToWorldVectorScalar(new Vector2(1, 1));
-
+                    
                     g.setColor(tileOutlineColor);
                     GG.drawRect(position, tileSize);
                 }
             }
-            if (this.currentLayer != null) {
+            if (this.currentLayer != null && tools.windowPosition != null) {
+                boolean mouseInPanel = Vector2.AABBContainsPoint(tools.windowPosition, tools.windowSize, Game.worldMousePos);
+
                 Rectangle selectionRectangle = new Rectangle();
 
-                if (Game.IsMousePressed(MouseEvent.BUTTON3)) {
+                if (!mouseInPanel && this.currentTool.equals("Select") && Game.IsMousePressed(MouseEvent.BUTTON3)) {
                     this.mapSelection.clear();
                 }
-                if (this.currentTool.equals("Select") && Game.IsMousePressed(MouseEvent.BUTTON1)) {
+                if (!mouseInPanel && this.currentTool.equals("Select") && Game.IsMousePressed(MouseEvent.BUTTON1)) {
                     if (this.mapSelectionMouseStart == null) {
                         mapSelectionMouseStart = Game.worldMousePos.scale(1.0);
                     }
@@ -542,7 +591,7 @@ class TileMapEditor {
 
                     // Set the normalized rectangle
                     selectionRectangle.setBounds(normalizedX, normalizedY, normalizedWidth, normalizedHeight);
-
+                    
                     this.mapSelection.clear();
                 }
 
@@ -552,6 +601,8 @@ class TileMapEditor {
 
                 for (Tile t : this.currentLayer.tiles) {
                     boolean isNull = t.IsNull();
+
+                    if (isNull && this.currentTool.equals("Select") && !this.mapCanSelectBlank) continue;
 
                     Color tileOutlineColor = new Color(60, 106, 171, 190);
                     Rectangle tileRectangle = new Rectangle();
@@ -573,18 +624,16 @@ class TileMapEditor {
                     boolean selected = (this.mapSelection.indexOf(t) != -1);
 
                     if (this.currentTool.equals("Paint")) {
-                        Vector2 roundedToTileMousePos = this.map.WorldToLocalVector(Game.mousePos);
+
+                        Vector2 mouseInMap = this.map.WorldToLocalVector(Game.worldMousePos);
+
+                        mouseInMap.x = Math.floor(mouseInMap.x) + 0.5;
+                        mouseInMap.y = Math.floor(mouseInMap.y) + 0.5;
+
+                        Vector2 tileCentre = new Vector2(t.x + 0.5, t.y + 0.5);
+                        double distance = tileCentre.distance(mouseInMap);
                         
-                        roundedToTileMousePos.x = Math.floor(roundedToTileMousePos.x);
-                        roundedToTileMousePos.y = Math.floor(roundedToTileMousePos.y);
-                        
-                        roundedToTileMousePos = this.map.LocalToWorldVectorPositional(roundedToTileMousePos).add(tileSize.scale(0.5));
-                        
-                        Vector2 tileCentre = tilePosition.add(tileSize.scale(0.5));
-                        double distance = tileCentre.distance(roundedToTileMousePos);
-                        
-                        if (!Vector2.AABBContainsPoint(tools.windowPosition, tools.windowSize, Game.worldMousePos)
-                                            && distance < tileSize.magnitude()/2.0*(Math.floor(this.paintBrushRadius))) {
+                        if (!mouseInPanel && distance < 0.5*Math.floor(this.paintBrushRadius)) {
                             if ((isNull && this.paintBrushCanPaintBlankTiles) || (!isNull)) {
                                 tileOutlineColor = this.paintBrushIsEraser ? new Color(196, 49, 78) : new Color(49, 196, 103);
                                 drawOutline = true;
@@ -641,111 +690,100 @@ class TileMapEditor {
         tools.Begin(g, new Vector2(-800, 100), new Vector2(400, 300));
         tools.Name("Tools");
 
-        if (this.currentLayer != null && Game.IsMouseDown(MouseEvent.BUTTON1)) {
-            switch (this.currentTool) {
-                case "Paint": {
-                    if (this.sslSelectedKeyTile != null) {
-                        // this.map.SetTileAtWorldPosition(Game.worldMousePos, this.sslSelectedKeyTile.Clone(), this.currentLayer);
-                    }
-                } break;
-
-                case "Random Selection": {
-                    if (this.sslSelection.size() > 1) {
-                        int randomIndex = (int)(Math.random() * this.sslSelection.size());
-                        Tile randomTile = this.sslSelection.get(randomIndex);
-                        // this.map.SetTileAtWorldPosition(Game.worldMousePos, randomTile, this.currentLayer);
-                    }
-                } break;
-
-                case "Erase": {
-                    // this.map.ClearTileAtWorldPosition(Game.worldMousePos, this.currentLayer);
-                } break;
-
-                case "Fill": {
-                    // if (this.sslSelectedKeyTile != null) {
-                    //     for (Tile t : this.mapSelection) {
-                    //         t.w = this.sslSelectedKeyTile.w;
-                    //         t.h = this.sslSelectedKeyTile.h;
-                    //         t.textureIndex = this.sslSelectedKeyTile.textureIndex;
-                    //         t.textureSheet = this.sslSelectedKeyTile.textureSheet;
-                    //     }
-                    // }
-                }
-            }
-        }
-
         tools.ListBegin("Tools", new Vector2(), new Vector2(1.0, 41.0));
         tools.FlowLayoutBegin();
         
-        for (String tool : (this.mapSelection.size() > 0 ? this.toolButtonsWhileSelected : toolButtons)) {
+        for (String tool : toolButtons) {
             String text = tool;
             
             Rectangle buttonDims = tools.CalculateButtonDims(text, new Vector2(), new Vector2());
-                Vector2 buttonPosition = tools.FlowLayoutAdd(new Vector2(buttonDims.width, buttonDims.height));
-                
-                tools.nextButtonHighlight = tool == this.currentTool;
-                tools.nextButtonAbsPos = true;
-                if (tools.Button(text, buttonPosition, new Vector2(buttonDims.width, buttonDims.height))) {
+            Vector2 buttonPosition = tools.FlowLayoutAdd(new Vector2(buttonDims.width, buttonDims.height));
+            
+            tools.nextButtonHighlight = (tool == this.currentTool);
+            tools.nextButtonAbsPos = true;
+
+            if (tool.equals("Fill") || tool.equals("Delete")) {
+                tools.nextButtonDisabled = this.mapSelection.size() <= 0;
+            }
+
+            if (tools.Button(text, buttonPosition, new Vector2(buttonDims.width, buttonDims.height))) {
                     // Its been clicked
-                    this.currentTool = tool;
-                    
-                    if (tool.equals("Select")) {
-                        this.mapSelectionMouseStart = null;
-                        this.mapSelection.clear();
+                this.currentTool = tool;
+
+                if (this.currentTool.equals("Select")) {
+                    this.mapSelectionMouseStart = null;
+                    this.mapSelection.clear();
+                }
+
+                /* Editor Actions */
+                if (this.currentTool.equals("Fill")) {
+                    if (this.mapSelection.size() > 0 && this.sslSelection.size() > 0) {
+                        for (Tile t : this.mapSelection) {
+                            int randomIndex = (int)(Math.random() * this.sslSelection.size());
+                            Tile randomTile = this.sslSelection.get(randomIndex);
+                            t.Set(randomTile);
+                        }
+                    }
+                    this.currentTool = "Select";
+                } else if (this.currentTool.equals("Delete")) {
+                    if (this.mapSelection.size() > 0) {
+                        for (Tile t : this.mapSelection) {
+                            t.Clear();
+                        }
                     }
                 }
             }
+        }
             
-            tools.FlowLayoutEnd();
-            tools.ListEnd();
+        tools.FlowLayoutEnd();
+        tools.ListEnd();
             
-            tools.EntryBegin("Properties");
-            tools.EntryEnd();
-            tools.ListBegin("Tools Properties", new Vector2(), new Vector2(1.0, 1.0));
-                if (this.currentTool.equals("Select")) {
-                    tools.EntryBegin("Blank Tiles Selectable");
-                    tools.nextButtonHighlight = this.mapCanSelectBlank;
-                    if (tools.EntryButton(this.mapCanSelectBlank ? "Yes" : "No")) {
-                        this.mapCanSelectBlank = !this.mapCanSelectBlank;
-                    }
-                    tools.EntryEnd();
-                } else if (this.currentTool.equals("Paint")) {
-                    tools.EntryBegin("Brush Radius");
-                    this.paintBrushRadius = tools.EntrySlider(this.paintBrushRadius, 1.0, 15.0);
-                    tools.EntryEnd();
-
-                    tools.EntryBegin("Brush Stroke Chance");
-                    this.paintBrushStrokeChance = tools.EntrySlider(this.paintBrushStrokeChance, 0.0, 100.0);
-                    tools.EntryEnd();
-
-                    tools.EntryBegin("Brush Pick Random");
-                    tools.nextButtonHighlight = this.paintBrushRandomTiles;
-                    if (tools.EntryButton(this.paintBrushRandomTiles ? "Yes" : "No")) {
-                        this.paintBrushRandomTiles = !this.paintBrushRandomTiles;
-                    }
-                    tools.EntryEnd();
-
-                    tools.EntryBegin("Erase Mode");
-                    tools.nextButtonHighlight = this.paintBrushIsEraser;
-                    if (tools.EntryButton(this.paintBrushIsEraser ? "Yes" : "No")) {
-                        this.paintBrushIsEraser = !this.paintBrushIsEraser;
-                    }
-                    tools.EntryEnd();
-
-                    tools.EntryBegin("Can Paint on Blank");
-                    tools.nextButtonHighlight = this.paintBrushCanPaintBlankTiles;
-                    if (tools.EntryButton(this.paintBrushCanPaintBlankTiles ? "Yes" : "No")) {
-                        this.paintBrushCanPaintBlankTiles = !this.paintBrushCanPaintBlankTiles;
-                    }
-                    tools.EntryEnd();
+        tools.EntryBegin("Properties");
+        tools.EntryEnd();
+        tools.ListBegin("Tools Properties", new Vector2(), new Vector2(1.0, 1.0));
+            if (this.currentTool.equals("Select")) {
+                tools.EntryBegin("Blank Tiles Selectable");
+                tools.nextButtonHighlight = this.mapCanSelectBlank;
+                if (tools.EntryButton(this.mapCanSelectBlank ? "Yes" : "No")) {
+                    this.mapCanSelectBlank = !this.mapCanSelectBlank;
                 }
-            tools.ListEnd();
-            
-            tools.End();
-            
-            if (this.currentTool.equals("Paint") || this.currentTool.equals("Erase")) {
-                layersPanel.disabled = true;
-                sheetsPanel.disabled = true;
+                tools.EntryEnd();
+            } else if (this.currentTool.equals("Paint")) {
+                tools.EntryBegin("Brush Radius");
+                this.paintBrushRadius = tools.EntrySlider(this.paintBrushRadius, 1.0, 15.0);
+                tools.EntryEnd();
+
+                tools.EntryBegin("Brush Stroke Chance");
+                this.paintBrushStrokeChance = tools.EntrySlider(this.paintBrushStrokeChance, 0.0, 100.0);
+                tools.EntryEnd();
+
+                tools.EntryBegin("Brush Pick Random");
+                tools.nextButtonHighlight = this.paintBrushRandomTiles;
+                if (tools.EntryButton(this.paintBrushRandomTiles ? "Yes" : "No")) {
+                    this.paintBrushRandomTiles = !this.paintBrushRandomTiles;
+                }
+                tools.EntryEnd();
+
+                tools.EntryBegin("Erase Mode");
+                tools.nextButtonHighlight = this.paintBrushIsEraser;
+                if (tools.EntryButton(this.paintBrushIsEraser ? "Yes" : "No")) {
+                    this.paintBrushIsEraser = !this.paintBrushIsEraser;
+                }
+                tools.EntryEnd();
+
+                tools.EntryBegin("Can Paint on Blank");
+                tools.nextButtonHighlight = this.paintBrushCanPaintBlankTiles;
+                if (tools.EntryButton(this.paintBrushCanPaintBlankTiles ? "Yes" : "No")) {
+                    this.paintBrushCanPaintBlankTiles = !this.paintBrushCanPaintBlankTiles;
+                }
+                tools.EntryEnd();
+            }
+        tools.ListEnd();
+        tools.End();
+        
+        if (this.currentTool.equals("Paint")) {
+            layersPanel.disabled = true;
+            sheetsPanel.disabled = true;
             sheetEdPanel.disabled = true;
         }
         
@@ -757,7 +795,7 @@ class TileMapEditor {
         if (layersPanel.EntryButton("New")) {
             TileMapLayer newLayer = new TileMapLayer(map, map.width, map.height);
             
-            newLayer.name = "Layer " + (++this.layerCount);
+            newLayer.name = "Layer " + (this.map.layers.size()+1);
             this.currentLayer = newLayer;
             this.mapSelection.clear();
 
@@ -777,16 +815,32 @@ class TileMapEditor {
         }
         layersPanel.nextButtonDisabled = (currentLayer == null);
         if (layersPanel.EntryButton("Rename")) {
-            // TODO: Rename layers
+            this.currentLayer.name = null;
+        }
+        if (this.currentLayer != null && this.currentLayer.name == null) {
+            if (Panel.InputField("Enter Name for Layer:", this.currentLayer.name)) {
+                this.currentLayer.name = Panel.inputInput + "";
+            }
+        }
+
+        layersPanel.nextButtonDisabled = (this.currentLayer == null) || (this.layerProperties != null);
+        if (layersPanel.EntryButton("Edit")) {
+            this.layerProperties = new Panel();
         }
         layersPanel.EntryEnd();
         
         layersPanel.ListBegin("Layers", new Vector2(), new Vector2(0, -40.0));   
             for (TileMapLayer layer : this.map.layers) {
+                String buttonText = layer.name;
+
+                if (layer.isGroundLayer) {
+                    buttonText += " [GRND]";
+                }
+
                 if (layer == currentLayer) {
                     layersPanel.nextButtonHighlight = true;
                 }
-                if (layersPanel.Button(layer.name, new Vector2(), new Vector2(1.0, 0.0))) {
+                if (layersPanel.Button(buttonText, new Vector2(), new Vector2(1.0, 0.0))) {
                     currentLayer = layer;
                 }
                 layersPanel.LayoutVertBAdded(0.0);

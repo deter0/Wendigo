@@ -36,7 +36,6 @@ public class Weapon {
         // Handle firing
         if (Game.IsMouseDown(MouseEvent.BUTTON1) && System.currentTimeMillis() - lastFireTime >= 1000 / fireRate) {
             fire();
-            System.out.println("shoot button is pressed");
             lastFireTime = System.currentTimeMillis();
         }
 

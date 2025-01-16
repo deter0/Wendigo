@@ -176,31 +176,31 @@ public class Game extends JPanel implements Runnable, KeyListener {
 
         this.testMap = new TileMap(100, 100);
         SpriteSheet def = this.testMap.LoadSpriteSheet("res/Tile_set.png", 16);
-
+        
         this.editor = new TileMapEditor(testMap);
         
         this.testMap.LoadFromFile("./res/tempMapFile.wmap");
         // Maximize window
         this.parentJFrame.setExtendedState( this.parentJFrame.getExtendedState()|JFrame.MAXIMIZED_BOTH );
     }
-
+    
     public void Update(double deltaTime) {
         worldTransform = new AffineTransform();
-
+        
         worldTransform.translate(Game.WINDOW_WIDTH/2.0 - player.frameWidth / 2.0,
-                                Game.WINDOW_HEIGHT/2.0 - player.frameHeight / 2.0);
-
+        Game.WINDOW_HEIGHT/2.0 - player.frameHeight / 2.0);
+        
         worldTransform.translate(-player.x, -player.y);
-
+        
         Point mousePoint = new Point((int)mousePos.x, (int)mousePos.y);
         Point worldMousePoint = new Point();
         try {
             worldTransform.inverseTransform(mousePoint, worldMousePoint);
         } catch (NoninvertibleTransformException e) {
-
+            
         }
         Game.worldMousePos = new Vector2(worldMousePoint.x, worldMousePoint.y);
-
+        
         player.Update(deltaTime);
         badguy.Update(deltaTime);
         //badguy2.Update(deltaTime);
@@ -210,11 +210,11 @@ public class Game extends JPanel implements Runnable, KeyListener {
         //badguy6.Update(deltaTime);
         //badguy7.Update(deltaTime);
         gun.Update(deltaTime);
-
+        
         if (this.editorEnabled) {
             editor.Update(deltaTime);
         }
-
+        
         if (Game.IsKeyPressed(KeyEvent.VK_E)) {
             this.editorEnabled = !this.editorEnabled;
             if (this.editorEnabled && Game.IsKeyDown(KeyEvent.VK_SHIFT)) {
@@ -249,7 +249,9 @@ public class Game extends JPanel implements Runnable, KeyListener {
         testMap.Draw(g);
 
         //draw player obj
-        player.Draw(g);
+        // player.Draw(g);
+        testMap.ResetResponsiblities();
+        testMap.RenderResponsibly(player);
         //draw the weapon projectiles
         gun.Draw(g);
 
@@ -261,13 +263,6 @@ public class Game extends JPanel implements Runnable, KeyListener {
         //badguy5.Draw(g);
         //badguy6.Draw(g);
        // badguy7.Draw(g);
-        
-        try {
-            this.editor.Draw(g);
-        } catch (NoninvertibleTransformException e) {
-            // TODO Auto-generated catch block
-            e.printStackTrace();
-        }
 
         if (this.editorEnabled) {
             try {
@@ -280,8 +275,6 @@ public class Game extends JPanel implements Runnable, KeyListener {
                 // Unreachable, to my knowledge.
             }
         }
-        
-        Panel.InputField("Enter Name");
 
         g.setTransform(defaultTransform);
         this.DrawFPS(g);
@@ -569,7 +562,7 @@ public class Game extends JPanel implements Runnable, KeyListener {
         int keyCode = e.getKeyCode();
         
         // If it's escape close the game.
-        if (keyCode == KeyEvent.VK_ESCAPE) {
+        if (keyCode == KeyEvent.VK_ESCAPE && Game.keysDown[KeyEvent.VK_SHIFT]) {
             gameRunning = false;
         }
         
@@ -593,14 +586,21 @@ public class Game extends JPanel implements Runnable, KeyListener {
     
     @Override
     public void keyTyped(KeyEvent e) {
-        int keyCode = e.getKeyCode();
         char c = e.getKeyChar();
         
         if (!Character.isISOControl(c)) {
             Game.textInputBuffer = Game.textInputBuffer.concat(Character.toString(c));
         }
-        if (c == 8 && Game.textInputBuffer.length() > 0) {
-            Game.textInputBuffer = Game.textInputBuffer.substring(0, Game.textInputBuffer.length() - 1);
+        if ((c == 8 || c == 127) && Game.textInputBuffer.length() > 0) {
+            if (Game.keysDown[KeyEvent.VK_CONTROL] == true) { // Manually checking as input is disabled (Game.IsKeyDown(...) will return false).
+                int spaceIndex = Game.textInputBuffer.lastIndexOf(" ");
+
+                spaceIndex = spaceIndex >= 0 ? spaceIndex : 0;
+                
+                Game.textInputBuffer = Game.textInputBuffer.substring(0, spaceIndex);
+            } else {
+                Game.textInputBuffer = Game.textInputBuffer.substring(0, Game.textInputBuffer.length() - 1);
+            }
         }
         
         if (Game.textInputBuffer.length() >= 1024) {

@@ -86,16 +86,12 @@ public class Enemy extends GameObject {
         }
         
         
-        System.out.println("direction is " + direction);
         g.setColor(Color.RED);
         g.fillRect(x, y, 10, 10);
         g.fillRect(Game.player.x, Game.player.y, 10, 10);
         // Draw the image
         g.drawImage(currentFrame, transform, null);
-
-
-        
-        }
+    }
     
     
 

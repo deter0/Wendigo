@@ -32,7 +32,7 @@ class SpriteSheet {
 
     public Image GetImage(Graphics2D g) {
         if (this.GPUImage != null && this.VolatileImageNeedsCreation(g)) {
-            System.out.println("[LOG]: Recreating volatile image.");
+            // System.out.println("[LOG]: Recreating volatile image.");
             this.RenderGPUImage();
         }
         
@@ -258,6 +258,8 @@ class Tile {
     public int w = 1;
     public int h = 1;
 
+    protected ArrayList<GameObject> objectsOnTile = new ArrayList<>();
+
     public void LoadFromFile(BufferedReader br, TileMap map) throws IOException {
         int x = TileMap.readInt(br, "x");
         int y = TileMap.readInt(br, "y");
@@ -401,6 +403,7 @@ class TileMapLayer {
     protected TileMap parentMap;
     protected int width, height;
     protected ArrayList<Tile> tiles;
+    public boolean isGroundLayer = false;
 
     public void LoadFromFile(BufferedReader br, TileMap map) throws IOException {
         String name = TileMap.readString(br, "name");
@@ -424,6 +427,13 @@ class TileMapLayer {
             Tile t = new Tile(0, 0, null, -1);
             t.LoadFromFile(br, map);
             this.SetTile(t.x, t.y, t);
+        }
+
+        String isGroundLayer = TileMap.readString(br, "is_ground_layer");
+        if (isGroundLayer != null && isGroundLayer.equals("true")) {
+            this.isGroundLayer = true;
+        } else {
+            this.isGroundLayer = false;
         }
 
         TileMap.GoToEnd(br);
@@ -450,6 +460,8 @@ class TileMapLayer {
                 t.SaveToFile(fw, map);
             }
         }
+
+        fw.write("is_ground_layer=" + this.isGroundLayer + "\n");
 
         fw.write("END\n");
     }
@@ -533,6 +545,8 @@ class TileMap {
     protected ArrayList<SpriteSheet> ownedSheets = new ArrayList<>();
     protected ArrayList<TileMapLayer> layers = new ArrayList<>();
 
+    protected ArrayList<GameObject> renderingResponsiblity = new ArrayList<>();
+
     public TileMap(int width, int height) {
         this.width = width;
         this.height = height;
@@ -541,6 +555,10 @@ class TileMap {
         this.transform.scale(30.0, 30.0);
 
         this.layers.add(new TileMapLayer(this, width, height));
+    }
+
+    public void RenderResponsibly(GameObject o) {
+        this.renderingResponsiblity.add(o);
     }
 
     public void DeleteSheet(SpriteSheet sheet) {
@@ -602,8 +620,6 @@ class TileMap {
         int x = (int)Math.floor(position.x);
         int y = (int)Math.floor(position.y);
 
-        System.out.println(x + " , " + y);
-
         if (x < 0) return null;
         if (x > this.width) return null;
         if (y < 0) return null;
@@ -663,40 +679,110 @@ class TileMap {
         }
     } 
 
-    static Color DEBUG_GRID_COLOR = new Color(0x4b0b61);
+    public TileMapLayer GetGroundLayer() {
+        TileMapLayer groundLayer = null;
+        for (TileMapLayer l : this.layers) {
+            if (l.isGroundLayer) {
+                groundLayer = l;
+                break;
+            }
+        }
+        return groundLayer;
+    }
+
+    public void ResetResponsiblities() {
+        this.renderingResponsiblity.clear();
+
+        TileMapLayer groundLayer = this.GetGroundLayer();
+        if (groundLayer != null) {
+            for (Tile t : groundLayer.tiles) {
+                t.objectsOnTile.clear();
+            }
+        }
+    }
+
     public void Draw(Graphics2D g) {
         int drewCount = 0;
         
-        // for (int y = 0; y < this.height; y++) {
-        //     for (int x = 0; x < this.width; x++) {
-        //         Vector2 tilePosition = LocalToWorldVector(new Vector2(x, y));
-        //         Vector2 tileSize = LocalToWorldVector(new Vector2(1, 1));
-                
-        //         g.setColor(DEBUG_GRID_COLOR);
-        //         GG.drawRect(tilePosition, tileSize);
-        //     }
-        // }
-        
-        for (int i = 0; i < this.layers.size(); i++) {
-            TileMapLayer layer = this.layers.get(i);
-            for (Tile t : layer.tiles) {
-                if (t == null) continue;
-                
-                drewCount++;
-
-                Vector2 tilePosition = LocalToWorldVectorPositional(new Vector2(t.x, t.y));
-                Vector2 tileSize = LocalToWorldVectorScalar(new Vector2(t.w, t.h));
-                
-                if (!t.IsNull()) {                    
-                    // g.setColor(Panel.BUTTON_HILI_BG);                    
-                    // g.setStroke(new BasicStroke(2.0f));
-                    // GG.drawRect(tilePosition, tileSize);
-                    // g.setStroke(new BasicStroke());
-
-                    t.Draw(g, tilePosition.x, tilePosition.y, tileSize.x, tileSize.y);
+        TileMapLayer groundLayer = this.GetGroundLayer();
+        if (groundLayer != null) {
+            for (GameObject o : this.renderingResponsiblity) {
+                Vector2 centreBottomPos = o.position.add(new Vector2(o.size.x/2.0, o.size.y));
+                Tile t = this.GetTileAtWorldPosition(centreBottomPos, groundLayer);
+                if (t != null) {
+                    t.objectsOnTile.add(o);
+                    // System.out.println(t);
                 }
             }
         }
+        
+        // ? Surely this is fine for memory and performance. (We're in a time crunch.)
+        ArrayList<ArrayList<Tile>> layerOrdered = new ArrayList<>();
+
+        for (int y = 0; y < this.height; y++) {
+            for (int x = 0; x < this.width; x++) {
+                layerOrdered.add(new ArrayList<Tile>());
+            }
+        }
+
+        for (int y = 0; y < this.height; y++) {
+            for (int x = 0; x < this.width; x++) {
+                int index = y * this.width + x;
+
+                ArrayList<Tile> tilesAtPos = layerOrdered.get(index);
+
+                for (TileMapLayer l : this.layers) {
+                    if (l.width != this.width || l.height != this.height) {
+                        System.err.println("[WARN]: Not rendering layer with non-matching width or height. Layer: " + l.name);
+                        continue;
+                    }
+
+                    Tile t = l.tiles.get(index);
+                    tilesAtPos.add(t);
+                }
+            }
+        }
+
+        for (int i = 0; i < layerOrdered.size(); i++) {
+            ArrayList<Tile> tilesAtPos = layerOrdered.get(i);
+
+            for (int j = 0; j < tilesAtPos.size(); j++) {
+                Tile t = tilesAtPos.get(j);
+                if (t.h > 1) {
+                    tilesAtPos.remove(j);
+    
+                    int bottomY = t.y + t.h;
+                    int newIndex = (bottomY * this.width + t.x);
+    
+                    // System.out.println("Set position of compound" + t.y + " ->" + bottomY);
+    
+                    layerOrdered.get(newIndex).add(t);
+                }
+            }
+        }
+
+        for (int y = 0; y < this.height; y++) {
+            for (int x = 0; x < this.width; x++) {
+                int index = y * this.width + x;
+                ArrayList<Tile> tiles = layerOrdered.get(index);
+
+                for (int l = 0; l < tiles.size(); l++) {
+                    Tile t = tiles.get(l);
+
+                    if (t == null) continue;
+
+                    if (!t.IsNull()) {
+                        Vector2 tilePosition = LocalToWorldVectorPositional(new Vector2(t.x, t.y));
+                        Vector2 tileSize = LocalToWorldVectorScalar(new Vector2(t.w, t.h));
+                        
+                        t.Draw(g, tilePosition.x, tilePosition.y, tileSize.x, tileSize.y);
+                    }
+                    for (GameObject o : t.objectsOnTile) {
+                        o.Draw(g);
+                    }
+            }
+        }
+    }
 
         // System.out.println("Drew " + drewCount);
     }
@@ -750,7 +836,12 @@ class TileMap {
         return line;
     } 
 
+    private static boolean gotEnd = false;
     public static void GoToEnd(BufferedReader br) throws IOException {
+        if (gotEnd) {
+            gotEnd = false;
+            return;
+        }
         String line = null;
         do {
             String newLine = br.readLine();
@@ -762,24 +853,26 @@ class TileMap {
         } while (line == null || !line.equals("END"));
     }
 
-    public static int readInt(BufferedReader br, String expected_header) throws IOException {
+    public static Integer readInt(BufferedReader br, String expected_header) throws IOException {
+        if (gotEnd) return null;
+
         String line = getNextLine(br);
 
         if (line == null) {
             loaderError = "Unexpected EOF.\n";
-            return 0;
+            return null;
         }
 
         String components[] = line.split("=");
         if (components.length < 2) {
             loaderError = "Incomplete statement. Line: `" + line + "`";
-            return 0;
+            return null;
         }
         
         String header = components[0];
         if (!header.equals(expected_header)) {
             loaderError = "Expected `" + expected_header + "` got: `" + header + "`";
-            return 0;
+            return null;
         }
 
         String valueStr = components[1];
@@ -792,7 +885,7 @@ class TileMap {
             value = Integer.parseInt(valueStr);
         } catch (NumberFormatException e) {
             loaderError = "Expected integer got: " + valueStr + ".\n";
-            return 0;
+            return null;
         }
 
         return value;
@@ -800,10 +893,17 @@ class TileMap {
 
     
     public static String readString(BufferedReader br, String expected_header) throws IOException {
+        if (gotEnd) return null;
+
         String line = getNextLine(br);
 
         if (line == null) {
             loaderError = "Unexpected EOF.\n";
+            return null;
+        }
+
+        if (line.equals("END")) {
+            gotEnd = true;
             return null;
         }
 
@@ -831,6 +931,7 @@ class TileMap {
             File mapF = new File(filePath);
             if (!mapF.exists()) {
                 System.err.println("[ERROR]: Attempted to load map file that doesn't exist: `" + filePath + "`");
+                return;
             }
 
             BufferedReader br = new BufferedReader(new FileReader(mapF));
@@ -849,7 +950,6 @@ class TileMap {
                 SpriteSheet s = new SpriteSheet(br, this);
                 sheets.add(s);
             }
-
             
             if (loaderError != null) {
                 System.err.println("[ERROR] Map loader error in loading sheets: " + loaderError);
