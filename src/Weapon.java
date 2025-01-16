@@ -1,10 +1,10 @@
 import java.awt.*;
-import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
 import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.util.ArrayList;
+
 
 import javax.imageio.ImageIO;
 
@@ -16,6 +16,12 @@ public class Weapon {
     private ArrayList<Projectile> projectiles; // List of projectiles
     private long lastFireTime = 0; // Track time since the last shot
     private BufferedImage bullet;
+    public int magazine = 30;
+    private boolean canShoot;
+    public long reloadStart;
+    private long reloadTime = 2500;
+
+
 
     public Weapon(int range, int fireRate, int dmg, Player owner) {
         this.range = range;
@@ -33,11 +39,26 @@ public class Weapon {
     }
 
     public void Update(double deltaTime) {
+
+        if (canShoot){
         // Handle firing
         if (Game.IsMouseDown(MouseEvent.BUTTON1) && System.currentTimeMillis() - lastFireTime >= 1000 / fireRate) {
             fire();
+            magazine--;
             lastFireTime = System.currentTimeMillis();
         }
+        if (magazine == 0){
+            canShoot = false;
+            reloadStart = System.currentTimeMillis();        
+            
+        } 
+    }
+       else if (!canShoot){
+        if (System.currentTimeMillis() - reloadStart >= reloadTime){
+            canShoot = true;
+            magazine = 30;
+        }
+    }
 
         // Update projectiles
         for (int i = 0; i < projectiles.size(); i++) {

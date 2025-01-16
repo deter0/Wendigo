@@ -99,21 +99,28 @@ public class Game extends JPanel implements Runnable, KeyListener {
     public static AffineTransform worldTransform = new AffineTransform();
 
     // Initialize the player
-    public static Player player = new Player(100, 100);
+    public static Player player = new Player(1000, 100);
     //initialize the weapon
-    public Weapon gun = new Weapon(1000, 10, 10, player);
-    //Create enemy class
-    public Enemy badguy = new Enemy(100, 100);
+    public static Weapon gun = new Weapon(1000, 10, 10, player);
+    //create an array list of enemies
+    public static ArrayList<Enemy> enemies = new ArrayList<Enemy>();
+
+    //Create UI
+    public UI ui = new UI();
 
     // Load test map
     TileMap testMap;
     TileMapEditor editor;
-
     public boolean editorEnabled = false;
 
     public Vector2 testPosition = new Vector2();
 
     public Game(JFrame parentFrame) {
+
+        //Add enemies
+        for (int i = 0; i < 10; i+= 10){
+            enemies.add(new Enemy(i, i));
+        }
         this.parentJFrame = parentFrame;
         
         this.setFocusable(true); // make everything in this class appear on the screen
@@ -201,7 +208,6 @@ public class Game extends JPanel implements Runnable, KeyListener {
         
         Game.physics.physicsObjects.add(testObject);
         Game.physics.physicsObjects.add(player);
-        Game.physics.physicsObjects.add(badguy);
 
         /* Essentially the camera. */
         worldTransform = new AffineTransform();
@@ -218,11 +224,14 @@ public class Game extends JPanel implements Runnable, KeyListener {
             
         }
         Game.worldMousePos = new Vector2(worldMousePoint.x, worldMousePoint.y);
-        
+        //Update player
         player.Update(deltaTime);
-
-        badguy.Update(deltaTime);
-
+        
+        //update each enemy
+        for (Enemy e : enemies){
+            e.Update(deltaTime);
+        }
+        
         gun.Update(deltaTime);
         
         if (this.editorEnabled) {
@@ -269,12 +278,17 @@ public class Game extends JPanel implements Runnable, KeyListener {
         testMap.ResetResponsiblities();
 
         testMap.RenderResponsibly(player);
-        testMap.RenderResponsibly(badguy);
+        // testMap.RenderResponsibly(badguy);
         //draw the weapon projectiles
         gun.Draw(g);
 
-        //draw the ennemy
-        // badguy.Draw(g);
+        //draw the ennemies
+        for (Enemy e : enemies){
+            e.Draw(g);
+        }
+
+        //Draw the UI
+        ui.Draw(g);
 
         if (this.editorEnabled) {
             try {
@@ -350,6 +364,10 @@ public class Game extends JPanel implements Runnable, KeyListener {
         // Update the game
         Update(deltaTime);
         
+        for (Enemy e : enemies){
+            e.Update(deltaTime);
+        }
+
         // super.paint(gAbs);
         Graphics2D g = (Graphics2D)gAbs;
         
