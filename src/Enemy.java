@@ -7,7 +7,6 @@ import javax.imageio.ImageIO;
 import java.util.Random;
 
 public class Enemy extends GameObject {
-
     private Random interval = new Random();
     public int x, y;
     private final int RADIUS = 25; // Radius of the red circle
@@ -28,7 +27,7 @@ public class Enemy extends GameObject {
     private final int RUN_FRAMES = 7;
     private final int ATTACK_FRAMES = 5;
     private final double FRAME_DURATION = 0.2; // 0.2 seconds per frame
-    private final double ATTACK_INTERVAL = interval.nextDouble(1, 10); // 3 seconds between attacks;
+    private final double ATTACK_INTERVAL = interval.nextDouble(); // 3 seconds between attacks;
 
     public Enemy(int startX, int startY) {
         this.x = startX;
@@ -98,16 +97,14 @@ public class Enemy extends GameObject {
         transform.scale(scaleFactor, scaleFactor);
         
         
-        // g.setColor(Color.RED);
-        // g.drawOval(x, y, ENEMY_RADIUS, ENEMY_RADIUS);
+        g.setColor(Color.RED);
+        g.drawOval(x, y, ENEMY_RADIUS, ENEMY_RADIUS);
         // Draw the image
         g.drawImage(currentFrame, transform, null);
 
-        size.x = currentFrame.getWidth() * 0.8;
-        size.y = currentFrame.getHeight();
+        // size.x = currentFrame.getWidth() * 0.8;
+        // size.y = currentFrame.getHeight();
     }
-    
-    
 
     public void Update(double deltaTime) {
         x = (int)position.x;
@@ -172,6 +169,8 @@ public class Enemy extends GameObject {
         // Move the enemy
         x += targetDX * speed * deltaTime;
         y += targetDY * speed * deltaTime;
+
+        System.out.println(x + ", " + y);
     }
     
 

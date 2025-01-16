@@ -87,7 +87,7 @@ public class Game extends JPanel implements Runnable, KeyListener {
     // Time stuff
     public static double gameStart = System.currentTimeMillis()/1000.0;
     public static double now() {
-        return (double)System.nanoTime() / (double)1e9 - gameStart;
+        return (double)System.nanoTime() / (double)1e9;
     }
 
     // Current cursor
@@ -116,11 +116,11 @@ public class Game extends JPanel implements Runnable, KeyListener {
     public Vector2 testPosition = new Vector2();
 
     public Game(JFrame parentFrame) {
-
         //Add enemies
-        for (int i = 0; i < 10; i+= 10){
-            enemies.add(new Enemy(i, i));
-        }
+        // for (int i = 0; i < 10; i += 10){
+        //     enemies.add(new Enemy(i*100, 0));
+        // }
+
         this.parentJFrame = parentFrame;
         
         this.setFocusable(true); // make everything in this class appear on the screen
@@ -190,6 +190,7 @@ public class Game extends JPanel implements Runnable, KeyListener {
         this.editor = new TileMapEditor(testMap);
         
         this.testMap.LoadFromFile("./res/map.wmap");
+
         // Maximize window
         this.parentJFrame.setExtendedState( this.parentJFrame.getExtendedState()|JFrame.MAXIMIZED_BOTH );
     }
@@ -282,14 +283,7 @@ public class Game extends JPanel implements Runnable, KeyListener {
         //draw the weapon projectiles
         gun.Draw(g);
 
-        //draw the ennemies
-        for (Enemy e : enemies){
-            e.Draw(g);
-        }
-
-        //Draw the UI
-        ui.Draw(g);
-
+        
         if (this.editorEnabled) {
             try {
                 // Workaround: Temporarily set mouse to world mouse then revert for editor
@@ -302,9 +296,17 @@ public class Game extends JPanel implements Runnable, KeyListener {
             }
         }
 
+        //draw the ennemies
+        for (Enemy e : enemies){
+            e.Draw(g);
+        }
+        
         Game.physics.Draw(g);
-
+        
         g.setTransform(defaultTransform);
+
+        //Draw the UI
+        ui.Draw(g);
         
         this.DrawFPS(g);
 
@@ -320,26 +322,11 @@ public class Game extends JPanel implements Runnable, KeyListener {
     }
 
     private double lastDraw = Game.now();
-    private double nextDrawDeadline = -Double.MAX_VALUE;
+
     @Override
     public void paint(Graphics gAbs) { // Override JPanel paint method
-        if (Game.gameRunning == false) this.Close();
-
         double now = Game.now();
         double deltaTime = now - this.lastDraw;
-        
-        if (now < nextDrawDeadline) {
-            try {
-                Thread.sleep(0, 100);
-            } catch (IllegalArgumentException | InterruptedException e) {
-                e.printStackTrace();
-            }
-
-            repaint();
-            return;
-        }
-        
-        nextDrawDeadline = now + this.targetFrameTime - this.targetFrameTime/16.0;
 
         Point mp = this.getMousePosition();
 
@@ -370,20 +357,6 @@ public class Game extends JPanel implements Runnable, KeyListener {
 
         // super.paint(gAbs);
         Graphics2D g = (Graphics2D)gAbs;
-        
-        // GraphicsConfiguration gc = GraphicsEnvironment.getLocalGraphicsEnvironment()
-        //                                                 .getDefaultScreenDevice()
-        //                                                 .getDefaultConfiguration();
-
-        // System.out.println(gc.getImageCapabilities().isAccelerated());
-
-        // VolatileImage backBuffer = gc.createCompatibleVolatileImage(WINDOW_WIDTH, WINDOW_HEIGHT, Transparency.OPAQUE);
-        // backBuffer.setAccelerationPriority(1.f);
-
-        // System.out.println("Backbuffer accelerated: " + backBuffer.getCapabilities(gc).isAccelerated());
-
-        // Graphics2D bg = backBuffer.createGraphics();
-
 
         // Set good graphic's graphic context to the new graphic's context
         GG.g = g;
@@ -398,7 +371,7 @@ public class Game extends JPanel implements Runnable, KeyListener {
         //     RenderingHints.VALUE_ANTIALIAS_ON); 
         
         g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING,
-            RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+                            RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
         
         g.setColor(Color.BLACK);
         g.fillRect(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
@@ -417,10 +390,6 @@ public class Game extends JPanel implements Runnable, KeyListener {
         }
 
         g.dispose();
-
-        // g.drawImage(backBuffer, null, null);
-
-        repaint((int)(this.targetFrameTime*900));
     }
 
     public void Close() {
@@ -443,43 +412,26 @@ public class Game extends JPanel implements Runnable, KeyListener {
         // TODO: Test if `setOpaque(true)` has flickering on other platforms.
         // Confirmed flickering on: Plasma/ Wayland
         // this.setOpaque(false);
-        // this.setDoubleBuffered(true);
+        this.setDoubleBuffered(true);
         
         // Last time
-        // double lastTick = System.currentTimeMillis()/1000.0;
-        double deltaTime = 0;
+        double lastTick = 0;
+        double updateDT = 0;
 
-        repaint();
+        while (Game.gameRunning) { // Loop while game is running
+            updateDT = Game.now() - lastTick; // Calculate delta
 
-        // while (Game.gameRunning) { // Loop while game is running
-        //     deltaTime = Game.now() - lastTick; // Calculate delta
-
-        //     // Update mouse position
-        //     Point mp = this.getMousePosition();
-        //     if (mp != null)
-        //         Game.mousePos = new Vector2(mp.x, mp.y);
-                
-        //     if (deltaTime >= 1.0/TARGET_FPS/2.0) { // If we're ready to render a frame render it
-        //         // System.out.println(1.0/deltaTime);
-
-        //         Game.WINDOW_WIDTH = this.getWidth();
-        //         Game.WINDOW_HEIGHT = this.getHeight();
-                
-        //         Game.WIDTH = Game.WINDOW_WIDTH;
-        //         Game.HEIGHT = Game.WINDOW_HEIGHT;        
-
-        //         // repaint(); // Tell the panel to call paint
-                
-        //         lastTick = Game.now(); //Update( Update last tick)
-        //     } else {
-        //         try {
-        //             //Thread.sleep((long)((1.0/TARGET_FPS - deltaTime)*600.0), 0); // Sleep 1ms if we're doing nothing so we don't bog CPU
-        //             Thread.sleep(1);
-        //         } catch (InterruptedException err) {
-        //             System.err.println(err);
-        //         }
-        //     }
-        // }
+            if (updateDT >= (1.0/TARGET_FPS)/2.0) { // If we're ready to render a frame render it
+                lastTick = Game.now(); //Update( Update last tick)
+                repaint(); // Tell the panel to call paint
+            } else {
+                try {
+                    Thread.sleep(1);
+                } catch (InterruptedException err) {
+                    System.err.println(err);
+                }
+            }
+        }
     }
 
 

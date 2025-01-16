@@ -71,7 +71,7 @@ class SpriteSheet {
         GraphicsConfiguration gc = GraphicsEnvironment.getLocalGraphicsEnvironment()
                                                       .getDefaultScreenDevice()
                                                       .getDefaultConfiguration();
-        this.GPUImage = gc.createCompatibleVolatileImage(this.image.getWidth(), this.image.getHeight(), hasAlpha ? Transparency.TRANSLUCENT : Transparency.OPAQUE);
+        this.GPUImage = gc.createCompatibleVolatileImage(this.image.getWidth(), this.image.getHeight(), hasAlpha ? Transparency.BITMASK : Transparency.OPAQUE);
         this.RenderGPUImage();
     }
 
@@ -112,11 +112,27 @@ class SpriteSheet {
         File f = new File(imagePath);
         BufferedImage loadedImage = ImageIO.read(f);
 
+        GraphicsConfiguration gc = GraphicsEnvironment
+                .getLocalGraphicsEnvironment()
+                .getDefaultScreenDevice()
+                .getDefaultConfiguration();
+
+        // Create a compatible image
+        BufferedImage optimizedImage = gc.createCompatibleImage(
+                                            loadedImage.getWidth(),
+                                            loadedImage.getHeight(),
+                                            Transparency.BITMASK
+                                        );
+        Graphics2D g2d = optimizedImage.createGraphics();
+        g2d.drawImage(loadedImage, 0, 0, null);
+        g2d.dispose();
+
+
         System.out.println("Sprite Sheet Name: " + name);
         System.out.println("\tImage Path: " + imagePath);
         System.out.println("\tTile Size: " + tileSize);
         
-        this.Init(loadedImage, imagePath, tileSize);
+        this.Init(optimizedImage, imagePath, tileSize);
         this.name = name;
 
         if (deletedIndicies != null) {
@@ -278,6 +294,13 @@ class Tile {
 
     protected ArrayList<GameObject> objectsOnTile = new ArrayList<>();
 
+    public ArrayList<String> tags = new ArrayList<>();
+
+    public boolean animated = false;
+    public int animNumFramesX = 1;
+    public int animNumFramesY = 1;
+    public int animFPS = 15;
+
     public void LoadFromFile(BufferedReader br, TileMap map) throws IOException {
         int x = TileMap.readInt(br, "x");
         int y = TileMap.readInt(br, "y");
@@ -293,6 +316,11 @@ class Tile {
 
         String collidable = TileMap.readString(br, "collidable");
 
+        String animated = TileMap.readString(br, "animated");
+        Integer animFPS = TileMap.readInt(br, "anim_fps");
+        Integer animFramesX = TileMap.readInt(br, "anim_frames_x");
+        Integer animFramesY = TileMap.readInt(br, "anim_frames_y");
+
         if (cx != null && cy != null && cw != null && ch != null) {
             this.collidorPos = new Vector2(cx, cy);
             this.collidorSize = new Vector2(cw, ch);
@@ -305,6 +333,14 @@ class Tile {
             this.collidable =  true;
         } else {
             this.collidable = false;
+        }
+
+        if (animated == "True") {
+            if (animFPS != null && animFramesX != null && animFramesY != null) {
+                this.animFPS = animFPS;
+                this.animNumFramesX = animFramesX;
+                this.animNumFramesY = animFramesY;
+            }
         }
 
         TileMap.GoToEnd(br);
@@ -321,7 +357,7 @@ class Tile {
     }
  
     public boolean isModified() {
-        return (this.w != 1 || this.h != 1 || this.collidable != false);
+        return (this.w != 1 || this.h != 1 || this.collidable != false || this.animated == true);
     }
 
     public void Set(Tile newTile) {
@@ -332,6 +368,10 @@ class Tile {
         this.collidable = newTile.collidable;
         this.collidorPos = newTile.collidorPos;
         this.collidorSize = newTile.collidorSize;
+        this.animated = newTile.animated;
+        this.animFPS = newTile.animFPS;
+        this.animNumFramesX = newTile.animNumFramesX;
+        this.animNumFramesY = newTile.animNumFramesY;
     }
 
     public void SaveToFile(FileWriter fw, TileMap map) throws IOException {
@@ -357,6 +397,11 @@ class Tile {
         fw.write("cw=" + this.collidorSize.x + "\n");
         fw.write("ch=" + this.collidorSize.y + "\n");
         fw.write("collidable=" + this.collidable + "\n");
+
+        fw.write("animated=" + this.animated + "\n");
+        fw.write("anim_fps=" + this.animFPS + "\n");
+        fw.write("anim_frames_x=" + this.animNumFramesX + "\n");
+        fw.write("anim_frames_y=" + this.animNumFramesY + "\n");
 
         fw.write("END\n");
     }
@@ -756,22 +801,23 @@ class TileMap {
     public void Draw(Graphics2D g) {
         int drewCount = 0;
         
+        
         TileMapLayer groundLayer = this.GetGroundLayer();
         if (groundLayer != null) {
             for (GameObject o : this.renderingResponsiblity) {
                 g.setColor(Color.RED);
                 GG.drawRect(o.position, o.size);
-
+                
                 Vector2 centreBottomPos = o.position.add(new Vector2(o.size.x/2.0, o.size.y));
-
+                
                 g.setColor(Color.RED);
                 GG.drawOval(centreBottomPos, new Vector2(10, 10));
-
+                
                 Tile t1 = this.GetTileAtWorldPosition(centreBottomPos, groundLayer);
                 Tile t2 = null;
-
+                
                 if (t1 != null)
-                    t2 = groundLayer.GetTile(t1.x, t1.y + 1);
+                t2 = groundLayer.GetTile(t1.x, t1.y + 1);
 
                 if (t2 != null) {
                     t2.objectsOnTile.add(o);
@@ -785,55 +831,57 @@ class TileMap {
         
         // ? Surely this is fine for memory and performance. (We're in a time crunch.)
         ArrayList<ArrayList<Tile>> layerOrdered = new ArrayList<>();
-
+        
         for (int y = 0; y < this.height; y++) {
             for (int x = 0; x < this.width; x++) {
                 layerOrdered.add(new ArrayList<Tile>());
             }
         }
-
+        
         for (int y = 0; y < this.height; y++) {
             for (int x = 0; x < this.width; x++) {
                 int index = y * this.width + x;
-
+                
                 ArrayList<Tile> tilesAtPos = layerOrdered.get(index);
-
+                
                 for (TileMapLayer l : this.layers) {
                     if (l.width != this.width || l.height != this.height) {
                         System.err.println("[WARN]: Not rendering layer with non-matching width or height. Layer: " + l.name);
                         continue;
                     }
-
+                    
                     Tile t = l.tiles.get(index);
                     tilesAtPos.add(t);
                 }
             }
         }
-
+        
         for (int i = 0; i < layerOrdered.size(); i++) {
             ArrayList<Tile> tilesAtPos = layerOrdered.get(i);
-
+            
             for (int j = 0; j < tilesAtPos.size(); j++) {
                 Tile t = tilesAtPos.get(j);
                 if (t.h > 1) {
                     tilesAtPos.remove(j);
-    
+                    
                     int bottomY = t.y + t.h;
                     int newIndex = (bottomY * this.width + t.x);
-        
+                    
                     layerOrdered.get(newIndex).add(t);
                 }
             }
         }
 
+        
+        double start = Game.now();
         for (int y = 0; y < this.height; y++) {
             for (int x = 0; x < this.width; x++) {
                 int index = y * this.width + x;
                 ArrayList<Tile> tiles = layerOrdered.get(index);
-
+                
                 for (int l = 0; l < tiles.size(); l++) {
                     Tile t = tiles.get(l);
-
+                    
                     if (!t.IsNull()) {
                         Vector2 tilePosition = LocalToWorldVectorPositional(new Vector2(t.x, t.y));
                         Vector2 tileSize = LocalToWorldVectorScalar(new Vector2(t.w, t.h));
@@ -845,18 +893,19 @@ class TileMap {
             for (int x = 0; x < this.width; x++) {
                 int index = y * this.width + x;
                 ArrayList<Tile> tiles = layerOrdered.get(index);
-  
+                
                 for (int l = 0; l < tiles.size(); l++) {
                     Tile t = tiles.get(l);
-
+                    
                     for (GameObject o : t.objectsOnTile) {
                         o.Draw(g);
                     }
                 }
             }
         }
+        // System.err.println("Time: " + (Game.now() - start));
     }
-
+    
     public void Save(String filePath) {
         new Message("Saving map...");
 

@@ -27,8 +27,6 @@ public class Player extends GameObject {
 
     private double scale = 2.5;
 
-    private double scale = 2.5;
-
     // Afterimage data
     private ArrayList<AfterimageData> afterimages = new ArrayList<>();
     private final int AFTERIMAGE_LIFESPAN = 300; // Milliseconds

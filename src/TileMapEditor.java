@@ -3,6 +3,7 @@ import java.awt.event.*;
 import java.awt.geom.*;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.io.*;
 import java.awt.image.*;
 import javax.imageio.ImageIO;
@@ -314,9 +315,34 @@ class TileMapEditor {
                             sheetEdPanel.EntryEnd();
                         }
 
+                        // Short cuts to input collidor
                         if (Game.IsKeyPressed(KeyEvent.VK_C) && Game.IsKeyDown(KeyEvent.VK_SHIFT)) {
                             t.collidable = true;
                             this.sslNextSelectionIsCollidorRect = true;
+                        }
+
+                        // Animations
+                        sheetEdPanel.EntryBegin("Animated");
+
+                        sheetEdPanel.nextButtonHighlight = (t.animated);
+                        if (sheetEdPanel.EntryButton(t.animated ? "Yes" : "No")) {
+                            t.animated = !t.animated;
+                        }
+
+                        sheetEdPanel.EntryEnd();
+
+                        if (t.animated) {
+                            sheetEdPanel.EntryBegin("Num Frames X");
+                            t.animNumFramesX = (int)Math.round(sheetEdPanel.EntrySlider(t.animNumFramesX, 1, 15));
+                            sheetEdPanel.EntryEnd();
+
+                            sheetEdPanel.EntryBegin("Num Frames Y");
+                            t.animNumFramesY = (int)Math.round(sheetEdPanel.EntrySlider(t.animNumFramesY, 1, 15));
+                            sheetEdPanel.EntryEnd();
+
+                            sheetEdPanel.EntryBegin("FPS");
+                            t.animFPS = (int)Math.round(sheetEdPanel.EntrySlider(t.animFPS, 1, 60));
+                            sheetEdPanel.EntryEnd();
                         }
                     }
                     sheetEdPanel.ListEnd();
@@ -647,6 +673,8 @@ class TileMapEditor {
     private boolean paintBrushCanPaintBlankTiles = true;
     private Vector2 mapSelectionMouseStart = null;
 
+    private boolean enteringNewTag = false;
+
     public void Draw(Graphics2D g) throws NoninvertibleTransformException {
         sheetEdPanel.disabled = false;
         sheetsPanel.disabled = false;
@@ -867,9 +895,9 @@ class TileMapEditor {
         tools.FlowLayoutEnd();
         tools.ListEnd();
             
-        tools.EntryBegin("Properties");
-        tools.EntryEnd();
         tools.ListBegin("Tools Properties", new Vector2(), new Vector2(1.0, 1.0));
+            tools.EntryBegin("Tool Properties");
+            tools.EntryEnd();
             if (this.currentTool.equals("Select")) {
                 tools.EntryBegin("Blank Tiles Selectable");
                 tools.nextButtonHighlight = this.mapCanSelectBlank;
@@ -907,7 +935,41 @@ class TileMapEditor {
                 }
                 tools.EntryEnd();
             }
+            tools.ListBegin("MSelectionProp", new Vector2(), new Vector2(1.0, 300));
+                tools.EntryBegin("Selection Properties");
+                tools.EntryEnd();
+
+                if (this.mapSelection.size() == 1) {
+                    Tile t = this.mapSelection.get(0);
+
+                    tools.EntryBegin("Selection Tags");
+                    if (tools.EntryButton("Add")) {
+                        this.enteringNewTag = true;
+                    }
+                    if (this.enteringNewTag == true) {
+                        if (Panel.InputField("Enter tag:", null)) {
+                            t.tags.add(Panel.inputInput);
+                            this.enteringNewTag = false;
+                        }
+                    }
+                    tools.EntryEnd();
+                    tools.ListBegin("SelectionTags", new Vector2(), new Vector2(1.0, 1.0));
+
+                    Iterator<String> iterator = t.tags.iterator();
+                    while (iterator.hasNext()) {
+                        String tag = iterator.next();
+                        if (tools.Button(tag, new Vector2(), new Vector2(1.0, 0.0))) {
+                            iterator.remove(); // Remove method to avoid exception
+                        }
+                        tools.LayoutVertBAdded(0.0);
+                    }
+                    tools.ListEnd();
+                }
+
+                tools.EntryEnd();
+            tools.ListEnd();
         tools.ListEnd();
+                
         tools.End();
         
         if (this.currentTool.equals("Paint")) {
