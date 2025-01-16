@@ -5,6 +5,7 @@ import java.util.Arrays;
 
 import javax.imageio.ImageIO;
 import java.io.*;
+import java.net.URI;
 import java.awt.image.*;
 
 // Class for loading and managing SpriteSheet. See: https://en.wikipedia.org/wiki/Texture_atlas
@@ -89,14 +90,14 @@ class SpriteSheet {
         this.SetHasAlpha(false);
 
         if (this.GPUImage == null) {
-            System.err.println("[ERROR]: Error creating volatile image (GPU Image) for sprite sheet: `" + this.name + "`. Expect performance degradations.");
+            new Message("[ERROR]: Error creating volatile image (GPU Image) for sprite sheet: `" + this.name + "`. Expect performance degradations.", true);
         } else {
             this.RenderGPUImage();
             this.GPUImage.setAccelerationPriority(1.0f);
         }
     
         if (imageWidth % tileSize != 0 || imageHeight % tileSize != 0) {
-            System.err.println("[WARN]: Atlas tile size not equally divisible by it's width or height.");
+            new Message("Warning atlas tile size not equally divisible by it's width or height.", true);
         }
     }
     
@@ -154,10 +155,21 @@ class SpriteSheet {
         TileMap.GoToEnd(br);
     }
     public void SaveToFile(FileWriter fw, TileMap map) throws IOException {
+        File resFolder = new File("./");
+        File imageFile = new File(this.imagePath);
+        
+        URI path1 = resFolder.toURI();
+        URI path2 = imageFile.toURI();
+        
+        URI relativePath = path1.relativize(path2);
+        String path = relativePath.getPath();
+        
+        System.out.println("[LOG] Converted path: " + this.imagePath + " => " + path);
+        
         fw.write("__SPRITE SHEET__\n");
         fw.write("name=" + this.name + "\n");
-        fw.write("image_path=" + this.imagePath + "\n");
-        fw.write("tile_size="+this.tileSize+"\n");
+        fw.write("image_path=" + path + "\n");
+        fw.write("tile_size=" + this.tileSize + "\n");
 
         fw.write("delted_tiles_indicies=");
 
@@ -165,7 +177,7 @@ class SpriteSheet {
 
         for (Tile t : this.tiles) {
             if (!t.IsNull()) {
-                if (t.w != 1 || t.h != 1) {
+                if (t.isModified()) {
                     modifiedTilesCount ++;
                 }
             } else {
@@ -179,7 +191,7 @@ class SpriteSheet {
         for (int y = 0; y < this.numTilesY; y++) {
             for (int x = 0; x < this.numTilesX; x++) {
                 Tile t = this.tiles.get(y * this.numTilesX + x);
-                if (!t.IsNull() && (t.w != 1 || t.h != 1)) {
+                if (!t.IsNull() && t.isModified()) {
                     t.SaveToFile(fw, map);
                 }
             }
@@ -227,7 +239,7 @@ class SpriteSheet {
             }
         }
 
-        System.out.println("[LOG]: Purged blank " + removalCount + " tiles in `" + this.name + "` sprite sheet.");
+        new Message("Purged blank " + removalCount + " tiles in `" + this.name + "` sprite sheet.", 7.5);
         this.tilesPurged = true;
     }
 
@@ -238,7 +250,7 @@ class SpriteSheet {
         this.numTilesX = imageWidth / tileSize;
         this.numTilesY = imageHeight / tileSize;
 
-        System.err.println("[WARN]: Reset blueprint tiles.");
+        new Message("Warning reset blueprint tiles.", true);
         this.tiles = new ArrayList<>();
         for (int y = 0; y < this.numTilesY; y++) {
             for (int x = 0; x < this.numTilesX; x++) {
@@ -258,6 +270,12 @@ class Tile {
     public int w = 1;
     public int h = 1;
 
+    public boolean collidable = false;
+    public Vector2 collidorPos = new Vector2();
+    public Vector2 collidorSize = new Vector2();
+
+    public double frictionCoefficient = 1.0;
+
     protected ArrayList<GameObject> objectsOnTile = new ArrayList<>();
 
     public void LoadFromFile(BufferedReader br, TileMap map) throws IOException {
@@ -267,6 +285,27 @@ class Tile {
         int h = TileMap.readInt(br, "h");
         int textureIndex = TileMap.readInt(br, "texture_index");
         int spriteSheetIndex = TileMap.readInt(br, "sprite_sheet_index");
+
+        Double cx = TileMap.readNumber(br, "cx");
+        Double cy = TileMap.readNumber(br, "cy");
+        Double cw = TileMap.readNumber(br, "cw");
+        Double ch = TileMap.readNumber(br, "ch");
+
+        String collidable = TileMap.readString(br, "collidable");
+
+        if (cx != null && cy != null && cw != null && ch != null) {
+            this.collidorPos = new Vector2(cx, cy);
+            this.collidorSize = new Vector2(cw, ch);
+        } else {
+            this.collidorPos = new Vector2();
+            this.collidorSize = new Vector2(1.0, 1.0);
+        }
+
+        if (collidable != null && collidable.equals("true")) {
+            this.collidable =  true;
+        } else {
+            this.collidable = false;
+        }
 
         TileMap.GoToEnd(br);
         
@@ -280,12 +319,19 @@ class Tile {
             this.textureSheet = map.ownedSheets.get(spriteSheetIndex);
         }
     }
+ 
+    public boolean isModified() {
+        return (this.w != 1 || this.h != 1 || this.collidable != false);
+    }
 
     public void Set(Tile newTile) {
         this.w = newTile.w;
         this.h = newTile.h;
         this.textureIndex = newTile.textureIndex;
         this.textureSheet = newTile.textureSheet;
+        this.collidable = newTile.collidable;
+        this.collidorPos = newTile.collidorPos;
+        this.collidorSize = newTile.collidorSize;
     }
 
     public void SaveToFile(FileWriter fw, TileMap map) throws IOException {
@@ -305,6 +351,13 @@ class Tile {
         } else {
             fw.write("sprite_sheet_index=-1\n");
         }
+
+        fw.write("cx=" + this.collidorPos.x + "\n");
+        fw.write("cy=" + this.collidorPos.y + "\n");
+        fw.write("cw=" + this.collidorSize.x + "\n");
+        fw.write("ch=" + this.collidorSize.y + "\n");
+        fw.write("collidable=" + this.collidable + "\n");
+
         fw.write("END\n");
     }
 
@@ -328,6 +381,9 @@ class Tile {
         this.textureIndex = -1;
         this.w = 1;
         this.h = 1;
+        this.collidable = false;
+        this.collidorPos = new Vector2();
+        this.collidorSize = new Vector2(1.0, 1.0);
     }
 
     public boolean IsNull() {
@@ -403,7 +459,9 @@ class TileMapLayer {
     protected TileMap parentMap;
     protected int width, height;
     protected ArrayList<Tile> tiles;
+
     public boolean isGroundLayer = false;
+    public boolean visualizeCollidors = false;
 
     public void LoadFromFile(BufferedReader br, TileMap map) throws IOException {
         String name = TileMap.readString(br, "name");
@@ -488,16 +546,10 @@ class TileMapLayer {
 
         try {
             Tile current = this.tiles.get(tileIndex);
-    
-            current.w = t.w;
-            current.h = t.h;
-            current.textureSheet = t.textureSheet;
-            current.textureIndex = t.textureIndex;
+            current.Set(t);
         } catch (IndexOutOfBoundsException e) {
-            System.err.println("[ERROR]: Attempt to set a tile out of bounds. @(" + x + ", " + y +")");
+            new Message("Attempt to set a tile out of bounds. @(" + x + ", " + y +")", true);
         }
-
-        // this.tiles.set(tileIndex, t);
     }
 
     public void SetTile(int x, int y, SpriteSheet sheet, int textureIndex) {
@@ -508,12 +560,12 @@ class TileMapLayer {
 
         try {
             Tile current = this.tiles.get(tileIndex);
-            current.w = 1;
-            current.h = 1;
+            current.Clear();
+
             current.textureSheet = sheet;
             current.textureIndex = textureIndex;
         } catch (IndexOutOfBoundsException e) {
-            System.err.println("[ERROR]: Attempt to set a tile out of bounds. @(" + x + ", " + y +")");
+            new Message("Attempt to set a tile out of bounds. @(" + x + ", " + y +")", true);
         }
     }
 
@@ -526,7 +578,7 @@ class TileMapLayer {
         try {
             return this.tiles.get(tileIndex);
         } catch (IndexOutOfBoundsException e) {
-            System.err.println("[ERROR]: Attempt to get a tile out of bounds. @(" + x + ", " + y +")");
+            new Message("[ERROR]: Attempt to get a tile out of bounds. @(" + x + ", " + y +")", true);
             return null;
         }
     }
@@ -577,7 +629,7 @@ class TileMap {
         try {
             sheet = new SpriteSheet(filePath, tileSize);
         } catch (IOException e) {
-            System.err.println("[ERROR]: Error loading spritesheet from file (" + filePath + ")\n" + e.getLocalizedMessage());
+            new Message("Error loading spritesheet from file (" + filePath + ")\n" + e.getLocalizedMessage(), true);
             return null;
         }
 
@@ -707,11 +759,26 @@ class TileMap {
         TileMapLayer groundLayer = this.GetGroundLayer();
         if (groundLayer != null) {
             for (GameObject o : this.renderingResponsiblity) {
+                g.setColor(Color.RED);
+                GG.drawRect(o.position, o.size);
+
                 Vector2 centreBottomPos = o.position.add(new Vector2(o.size.x/2.0, o.size.y));
-                Tile t = this.GetTileAtWorldPosition(centreBottomPos, groundLayer);
-                if (t != null) {
-                    t.objectsOnTile.add(o);
-                    // System.out.println(t);
+
+                g.setColor(Color.RED);
+                GG.drawOval(centreBottomPos, new Vector2(10, 10));
+
+                Tile t1 = this.GetTileAtWorldPosition(centreBottomPos, groundLayer);
+                Tile t2 = null;
+
+                if (t1 != null)
+                    t2 = groundLayer.GetTile(t1.x, t1.y + 1);
+
+                if (t2 != null) {
+                    t2.objectsOnTile.add(o);
+                } else if (t1 != null) {
+                    t1.objectsOnTile.add(o);
+                } else {
+                    o.Draw(g);
                 }
             }
         }
@@ -753,9 +820,7 @@ class TileMap {
     
                     int bottomY = t.y + t.h;
                     int newIndex = (bottomY * this.width + t.x);
-    
-                    // System.out.println("Set position of compound" + t.y + " ->" + bottomY);
-    
+        
                     layerOrdered.get(newIndex).add(t);
                 }
             }
@@ -769,31 +834,38 @@ class TileMap {
                 for (int l = 0; l < tiles.size(); l++) {
                     Tile t = tiles.get(l);
 
-                    if (t == null) continue;
-
                     if (!t.IsNull()) {
                         Vector2 tilePosition = LocalToWorldVectorPositional(new Vector2(t.x, t.y));
                         Vector2 tileSize = LocalToWorldVectorScalar(new Vector2(t.w, t.h));
                         
                         t.Draw(g, tilePosition.x, tilePosition.y, tileSize.x, tileSize.y);
                     }
+                }
+            }
+            for (int x = 0; x < this.width; x++) {
+                int index = y * this.width + x;
+                ArrayList<Tile> tiles = layerOrdered.get(index);
+  
+                for (int l = 0; l < tiles.size(); l++) {
+                    Tile t = tiles.get(l);
+
                     for (GameObject o : t.objectsOnTile) {
                         o.Draw(g);
                     }
+                }
             }
         }
     }
 
-        // System.out.println("Drew " + drewCount);
-    }
-
     public void Save(String filePath) {
+        new Message("Saving map...");
+
         try {
             File mapF = new File(filePath);
             if (mapF.createNewFile()) {
-                System.out.println("[LOG]: Map file created: " + mapF.getPath());
+                new Message("New map file created: `" + mapF.getPath() + "`");
             } else {
-                System.out.println("[LOG]: Map file already exists: `" + mapF.getPath() + "`. Overwriting.");
+                new Message("Overwriting, maps file already exists: `" + mapF.getPath() + "`");
             }
 
             FileWriter fw = new FileWriter(mapF);
@@ -817,7 +889,8 @@ class TileMap {
             fw.flush();
             fw.close();
         } catch (IOException e) {
-            System.out.println("An error occurred.");
+            new Message("An error occurred." + e.getLocalizedMessage(), true);
+
             e.printStackTrace();
         }
     }
@@ -853,7 +926,7 @@ class TileMap {
         } while (line == null || !line.equals("END"));
     }
 
-    public static Integer readInt(BufferedReader br, String expected_header) throws IOException {
+    public static Integer readInt(BufferedReader br, String expectedHeader) throws IOException {
         if (gotEnd) return null;
 
         String line = getNextLine(br);
@@ -870,8 +943,8 @@ class TileMap {
         }
         
         String header = components[0];
-        if (!header.equals(expected_header)) {
-            loaderError = "Expected `" + expected_header + "` got: `" + header + "`";
+        if (!header.equals(expectedHeader)) {
+            loaderError = "Expected `" + expectedHeader + "` got: `" + header + "`";
             return null;
         }
 
@@ -892,7 +965,7 @@ class TileMap {
     }
 
     
-    public static String readString(BufferedReader br, String expected_header) throws IOException {
+    public static String readString(BufferedReader br, String expectedHeader) throws IOException {
         if (gotEnd) return null;
 
         String line = getNextLine(br);
@@ -913,8 +986,8 @@ class TileMap {
         }
         
         String header = components[0];
-        if (!header.equals(expected_header)) {
-            loaderError = "Expected `" + expected_header + "` got: `" + header + "`";
+        if (!header.equals(expectedHeader)) {
+            loaderError = "Expected `" + expectedHeader + "` got: `" + header + "`";
             return null;
         }
 
@@ -924,6 +997,18 @@ class TileMap {
         }
 
         return valueStr;
+    }
+
+    public static Double readNumber(BufferedReader br, String expectedHeader) throws IOException {
+        String str = readString(br, expectedHeader);
+        if (str != null) {
+            try {
+                return Double.parseDouble(str);
+            } catch (NumberFormatException e) {
+                loaderError = "Expected number got: `" + str + "`";
+            }
+        }
+        return null;
     }
 
     public void LoadFromFile(String filePath) {
@@ -952,7 +1037,7 @@ class TileMap {
             }
             
             if (loaderError != null) {
-                System.err.println("[ERROR] Map loader error in loading sheets: " + loaderError);
+                new Message("[ERROR] Map loader error in loading sheets: " + loaderError, true);
                 return;
             } else {
                 this.ownedSheets = sheets;
@@ -967,7 +1052,7 @@ class TileMap {
             }
             
             if (loaderError != null) {
-                System.err.println("[ERROR] Map loader error in loading layers: " + loaderError);
+                new Message("[ERROR] Map loader error in loading layers: " + loaderError, true);
                 return;
             } else {
                 this.layers = layers;

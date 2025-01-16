@@ -28,6 +28,8 @@ class TileMapEditor {
     private boolean sslIsNew = true;
     private String sslImgPath = null;
     private boolean sslLeftPanelOpen = true;
+    private boolean sslNextSelectionIsCollidorRect = false;
+    private boolean sslVisualizeCollidors = false;
     
     private double sslZoomTarget = 3.0;
     private double sslZoom = 3.0;
@@ -50,6 +52,8 @@ class TileMapEditor {
         this.sslScroll = new Vector2();
         this.sslZoomTarget = 3.0;
         this.sslZoom = 3.0;
+        this.sslNextSelectionIsCollidorRect = false;
+        this.sslVisualizeCollidors = false;
     }
 
     private void SSLGroupSelection() {
@@ -95,7 +99,7 @@ class TileMapEditor {
             topLeftTile.h = bottomRightY - topLeftY + 1;
             topLeftTile.textureIndex = tlIndex;
 
-            System.out.println("[LOG]: Created group tile of size " + topLeftTile.w + "x" + topLeftTile.h + ".");
+            new Message("Created group tile of size " + topLeftTile.w + "x" + topLeftTile.h + ".", 4.0);
 
             this.sslSheet.tiles.set(tlIndex, topLeftTile);
 
@@ -151,17 +155,7 @@ class TileMapEditor {
             try {
                 BufferedImage loadedImage = ImageIO.read(new File(this.sslImgPath));
                 if (loadedImage != null) {
-                    // BufferedImage compatibleImage = GraphicsEnvironment
-                    //         .getLocalGraphicsEnvironment()
-                    //         .getDefaultScreenDevice()
-                    //         .getDefaultConfiguration()
-                    //         .createCompatibleImage(loadedImage.getWidth(), loadedImage.getHeight(), Transparency.BITMASK);
-
-                    // Graphics2D cig = compatibleImage.createGraphics();
-                    // cig.drawImage(loadedImage, 0, 0, null);
-                    // cig.dispose();
-
-                    this.sslImage = loadedImage;//loadedImage;
+                    this.sslImage = loadedImage;
                     this.sslError = null;
                 } else {
                     throw new Exception("Tried to load image but got NULL.");
@@ -179,7 +173,7 @@ class TileMapEditor {
         double width = Game.WINDOW_WIDTH/2.0, height = Game.WINDOW_HEIGHT/2.0;
         sheetEdPanel.Begin(g, this.sheetsPanel.position.sub(new Vector2(width + 20, 0)), new Vector2(width, height));
 
-        sheetEdPanel.Name("Sprite Sheet Editor \"" + this.sslSheet!=null ? this.sslSheet.name : "None" + "\"");
+        sheetEdPanel.Name("Sprite Sheet Editor");
         if (sheetEdPanel.CloseButton()) {
             this.sslReset();
             return;
@@ -245,12 +239,86 @@ class TileMapEditor {
                         }
     
                         sheetEdPanel.EntryEnd();
+
+                        sheetEdPanel.EntryBegin("View all Collidors: ");
+                        sheetEdPanel.nextButtonHighlight = this.sslVisualizeCollidors;
+                        if (sheetEdPanel.EntryButton(this.sslVisualizeCollidors ? "Enabled" : "Disabled")) {
+                            this.sslVisualizeCollidors = !this.sslVisualizeCollidors;
+                        }
+    
+                        sheetEdPanel.EntryEnd();
                     sheetEdPanel.ListEnd();
     
                     sheetEdPanel.EntryBegin("Tile Properties");
                     sheetEdPanel.EntryEnd();
-    
+                    
+                    /* If no prime tile is selected but we have a group, just select something. */
+                    if (this.sslSelectedKeyTile == null && this.sslSelection.size() > 0) {
+                        this.sslSelectedKeyTile = this.sslSelection.get(0);
+                    }
+
                     sheetEdPanel.ListBegin("SSTileProperties", new Vector2(), new Vector2(1.0, 1.0));
+                    if (this.sslSelection.size() == 1) {
+                        Tile t = this.sslSelection.get(0);
+
+                        sheetEdPanel.EntryBegin("Update in Map");
+                        if (sheetEdPanel.EntryButton("Update")) {
+                            int numUpdated = 0;
+
+                            for (TileMapLayer l : this.map.layers) {
+                                for (Tile mapT : l.tiles) {
+                                    if (mapT.textureSheet == t.textureSheet && mapT.textureIndex == t.textureIndex
+                                            && mapT.w == t.w && mapT.h == t.h) {
+                                        mapT.Set(t);
+                                        numUpdated++;
+                                    }
+                                }
+                            }
+
+                            new Message("Updated " + numUpdated + " similar tiles to selected tile.");
+                        }
+                        sheetEdPanel.EntryEnd();
+
+                        sheetEdPanel.EntryBegin("Collidable");
+
+                        sheetEdPanel.nextButtonHighlight = (t.collidable);
+                        if (sheetEdPanel.EntryButton(t.collidable ? "Yes" : "No")) {
+                            t.collidable = !t.collidable;
+                        }
+
+                        sheetEdPanel.EntryEnd();
+
+                        if (t.collidable) {
+                            sheetEdPanel.EntryBegin("Collider Offset X");
+                            t.collidorPos.x = sheetEdPanel.EntrySlider(t.collidorPos.x, 0, 1);
+                            sheetEdPanel.EntryEnd();
+                            
+                            sheetEdPanel.EntryBegin("Collider Offset Y");
+                            t.collidorPos.y = sheetEdPanel.EntrySlider(t.collidorPos.y, 0, 1);
+                            sheetEdPanel.EntryEnd();
+                            
+                            sheetEdPanel.EntryBegin("Collider Size X");
+                            t.collidorSize.x = sheetEdPanel.EntrySlider(t.collidorSize.x, 0, 1);
+                            sheetEdPanel.EntryEnd();
+
+                            sheetEdPanel.EntryBegin("Collider Size Y");
+                            t.collidorSize.y = sheetEdPanel.EntrySlider(t.collidorSize.y, 0, 1);
+                            sheetEdPanel.EntryEnd();
+
+                            sheetEdPanel.EntryBegin("Draw Collidor");
+                            sheetEdPanel.nextButtonDisabled = (this.sslNextSelectionIsCollidorRect);
+                            if (sheetEdPanel.EntryButton("Draw")) {
+                                this.sslNextSelectionIsCollidorRect = true;
+                            }
+
+                            sheetEdPanel.EntryEnd();
+                        }
+
+                        if (Game.IsKeyPressed(KeyEvent.VK_C) && Game.IsKeyDown(KeyEvent.VK_SHIFT)) {
+                            t.collidable = true;
+                            this.sslNextSelectionIsCollidorRect = true;
+                        }
+                    }
                     sheetEdPanel.ListEnd();
     
                     if (sheetEdPanel.Button("Cancel", new Vector2(Panel.PADDING, 0), new Vector2(0, 40))) {
@@ -263,7 +331,7 @@ class TileMapEditor {
                             this.map.ownedSheets.add(this.sslSheet);
                         }
     
-                        System.out.println("[LOG]: Added sprite sheet: `" + this.sslSheet.name + "` to map.");
+                        new Message("Added sprite sheet: `" + this.sslSheet.name + "` to map.", 5.0);
                         this.sslReset();
     
                         return;
@@ -329,13 +397,17 @@ class TileMapEditor {
                 }
 
                 if (Game.IsMousePressed(MouseEvent.BUTTON1)) {
-                    if (!Game.IsKeyDown(KeyEvent.VK_CONTROL)) {
+                    if (!this.sslNextSelectionIsCollidorRect && !Game.IsKeyDown(KeyEvent.VK_CONTROL)) {
                         this.sslSelection.clear();
                     }
                     this.sslSelectionMouseStart = new Vector2(relativeMousePos.x, relativeMousePos.y);
                 }
                 if (Game.IsMouseReleased(MouseEvent.BUTTON1)) {
                     this.sslSelectionMouseStart = null;
+
+                    if (this.sslNextSelectionIsCollidorRect) {
+                        this.sslNextSelectionIsCollidorRect = false;
+                    }
                 }
             }
 
@@ -356,7 +428,32 @@ class TileMapEditor {
                 // Set the normalized rectangle
                 selectionRectangle.setBounds(normalizedX, normalizedY, normalizedWidth, normalizedHeight);
 
-                this.sslSelection.clear();
+                if (!this.sslNextSelectionIsCollidorRect) {
+                    this.sslSelection.clear();
+                }
+            }
+
+            if (this.sslNextSelectionIsCollidorRect) {
+                if (this.sslSelection.size() == 1) {
+                    Tile t = this.sslSelection.get(0);
+
+                    Rectangle tileRect = new Rectangle(
+                        (int)(imagePos.x + t.x * this.sslSheet.tileSize),
+                        (int)(imagePos.y + t.y * this.sslSheet.tileSize),
+                        this.sslSheet.tileSize * t.w,
+                        this.sslSheet.tileSize * t.h
+                    );
+
+                    // Normalize collidor position within tileRect
+                    t.collidorPos.x = ((double)selectionRectangle.x - (double)tileRect.x)/(double)tileRect.width;
+                    t.collidorPos.y = ((double)selectionRectangle.y - (double)tileRect.y)/(double)tileRect.height;
+
+                    // Normalize collidor size within tileRect
+                    t.collidorSize.x = (double)selectionRectangle.width / (double)tileRect.width;
+                    t.collidorSize.y = (double)selectionRectangle.height / (double)tileRect.height;
+                } else {
+                    new Message("[ERROR]: Attempted to set collision rect by drawing but something went wrong.", true);
+                }
             }
 
             for (int y = 0; y < this.sslSheet.numTilesY; y++) {
@@ -367,7 +464,9 @@ class TileMapEditor {
                                                            (int)(imagePos.y + y*this.sslSheet.tileSize), 
                                                            this.sslSheet.tileSize*t.w, this.sslSheet.tileSize*t.h);
 
-                        if (selectionRectangle.intersects(tileRect) || tileRect.intersects(selectionRectangle)) {
+
+                        boolean selectionPurposeReserved = this.sslNextSelectionIsCollidorRect;
+                        if (!selectionPurposeReserved && (selectionRectangle.intersects(tileRect) || tileRect.intersects(selectionRectangle))) {
                             this.sslSelection.add(t);
 
                             if (tileRect.contains(relativeMousePos)) {
@@ -393,6 +492,7 @@ class TileMapEditor {
                     boolean hoveringTile = false;
                     boolean selected = (this.sslSelection.indexOf(t) != -1);
                     boolean lastSelected = this.sslSelectedKeyTile == t;
+                    boolean drawCollidor = false;
 
                     tileRectangle.x = (int)(imagePos.x + x * this.sslSheet.tileSize);
                     tileRectangle.y = (int)(imagePos.y + y * this.sslSheet.tileSize);
@@ -412,14 +512,26 @@ class TileMapEditor {
                         if (lastSelected) {
                             tileOutlineColor = new Color(91, 207, 117);
                         }
+
+                    }
+                    if (t.collidable && (selected || this.sslVisualizeCollidors)) {
+                        drawCollidor = true;
                     }
 
                     g.setColor(tileOutlineColor);
-
                     if (drawOutline) {
                         g.setStroke(new BasicStroke((hoveringTile || lastSelected) ? 0.6f : 0.25f));
 
                         GG.drawRect(tileRectangle.x, tileRectangle.y, tileRectangle.width, tileRectangle.height);
+                    }
+
+                    if (drawCollidor) {
+                        g.setColor(Color.RED);
+                        
+                        GG.drawRect(tileRectangle.x + tileRectangle.width*t.collidorPos.x,
+                                    tileRectangle.y + tileRectangle.height*t.collidorPos.y,
+                                    tileRectangle.width*t.collidorSize.x,
+                                    tileRectangle.height*t.collidorSize.y);
                     }
                 }
             }
@@ -462,7 +574,7 @@ class TileMapEditor {
             ge.registerFont(f);
             TileMapEditor.ED_FONT =  new Font(f.getFontName(), Font.PLAIN, ED_FONT_SIZE);
         } catch (FontFormatException | IOException e) {
-            System.err.println("[ERROR]: Error loading editor font from file! Your editor may be borked.");
+            new Message("[ERROR]: Error loading editor font from file! Your game may be borked.", 20.0, true);
             TileMapEditor.ED_FONT = new Font("Courier New", Font.PLAIN, ED_FONT_SIZE);
         }
     }
@@ -473,9 +585,9 @@ class TileMapEditor {
     Panel layerProperties;
 
     public void LayerPropertiesPanel(Graphics2D g) {
-        Vector2 panelSize = new Vector2(150, 200);
+        final Vector2 initPanelSize = new Vector2(225, 200);
 
-        layerProperties.Begin(g, this.layersPanel.position.sub(new Vector2(panelSize.x + 20, 0)), panelSize);
+        layerProperties.Begin(g, this.layersPanel.position.sub(new Vector2(initPanelSize.x + 20, 0)), initPanelSize);
 
         layerProperties.Name("`" + this.currentLayer.name + "` Properties");
         if (layerProperties.CloseButton()) {
@@ -497,6 +609,13 @@ class TileMapEditor {
                 }
             }    
             layerProperties.EntryEnd();
+
+            layerProperties.EntryBegin("Visalize All Collidors");
+            layerProperties.nextButtonHighlight = this.currentLayer.visualizeCollidors;
+            if (layerProperties.EntryButton(this.currentLayer.visualizeCollidors ? "Yes" : "No")) {
+                this.currentLayer.visualizeCollidors = !this.currentLayer.visualizeCollidors;
+            }
+            layerProperties.EntryEnd();
         layerProperties.ListEnd();
 
         layerProperties.End();
@@ -505,11 +624,11 @@ class TileMapEditor {
     public void Update(double dt) {
         if (this.map != null) {
             if (Game.IsKeyPressed(KeyEvent.VK_S) && Game.IsKeyDown(KeyEvent.VK_CONTROL)) {
-                this.map.Save("./res/tempMapFile.wmap");
+                this.map.Save("./res/map.wmap");
             }
 
             if (Game.IsKeyPressed(KeyEvent.VK_Z) && Game.IsKeyDown(KeyEvent.VK_CONTROL)) {
-                this.map.LoadFromFile("./res/tempMapFile.wmap");
+                this.map.LoadFromFile("./res/map.wmap");
                 this.sslReset();
                 this.mapSelection.clear();
                 this.currentTool = "Select";
@@ -621,10 +740,10 @@ class TileMapEditor {
                         } 
                     }
                     boolean drawOutline = true;
+                    boolean drawCollidor = this.currentLayer.visualizeCollidors;
                     boolean selected = (this.mapSelection.indexOf(t) != -1);
 
                     if (this.currentTool.equals("Paint")) {
-
                         Vector2 mouseInMap = this.map.WorldToLocalVector(Game.worldMousePos);
 
                         mouseInMap.x = Math.floor(mouseInMap.x) + 0.5;
@@ -683,6 +802,15 @@ class TileMapEditor {
                         g.setStroke(new BasicStroke(selected ? 0.6f : 0.25f));
                         GG.drawRect(tileRectangle.x, tileRectangle.y, tileRectangle.width, tileRectangle.height);
                     }
+
+                    if (drawCollidor) {
+                        g.setColor(Color.RED);
+                        
+                        GG.drawRect(tileRectangle.x + tileRectangle.width*t.collidorPos.x,
+                                    tileRectangle.y + tileRectangle.height*t.collidorPos.y,
+                                    tileRectangle.width*t.collidorSize.x,
+                                    tileRectangle.height*t.collidorSize.y);
+                    }
                 }
             }
         }
@@ -731,6 +859,7 @@ class TileMapEditor {
                             t.Clear();
                         }
                     }
+                    this.currentTool = "Select";
                 }
             }
         }

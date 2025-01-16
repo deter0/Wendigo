@@ -40,12 +40,16 @@ public class GG {
         g.fillRoundRect(x1.intValue(), y1.intValue(), x2.intValue(), y2.intValue(), arcW.intValue(), arcH.intValue());
     }
     
+    public static void drawLine(Vector2 a, Vector2 b) {
+        GG.drawLine(a.x, a.y, b.x, b.y);
+    }
+
     public static void fillRect(Rectangle rect) {
         GG.fillRect(rect.x, rect.y, rect.width, rect.height);
     }
     
     public static void drawRect(Rectangle rect) {
-        GG.fillRect(rect.x, rect.y, rect.width, rect.height);
+        GG.drawRect(rect.x, rect.y, rect.width, rect.height);
     }
 
     public static void fillRect(Vector2 position, Vector2 size) {

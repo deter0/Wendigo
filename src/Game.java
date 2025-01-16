@@ -76,6 +76,9 @@ public class Game extends JPanel implements Runnable, KeyListener {
     public static double FPS;
     public static double deltaTime;
 
+    // Physics stuff
+    public static Physics physics = new Physics();
+
     // All fonts
     public static Font font16;
     public static Font font32;
@@ -186,16 +189,30 @@ public class Game extends JPanel implements Runnable, KeyListener {
         
         this.editor = new TileMapEditor(testMap);
         
-        this.testMap.LoadFromFile("./res/tempMapFile.wmap");
+        this.testMap.LoadFromFile("./res/map.wmap");
         // Maximize window
         this.parentJFrame.setExtendedState( this.parentJFrame.getExtendedState()|JFrame.MAXIMIZED_BOTH );
     }
     
+    GameObject testObject;
+
     public void Update(double deltaTime) {
-        worldTransform = new AffineTransform();
+        if (testObject == null) {
+            testObject = new GameObject();
+            testObject.position = new Vector2(200, -100);
+            testObject.size = new Vector2(100, 100);
+            testObject.velocity = new Vector2(10, 0);
+        }
+
+        Game.physics.currentMap = testMap;
         
+        Game.physics.physicsObjects.add(testObject);
+        Game.physics.physicsObjects.add(player);
+
+        /* Essentially the camera. */
+        worldTransform = new AffineTransform();
         worldTransform.translate(Game.WINDOW_WIDTH/2.0 - player.frameWidth / 2.0,
-        Game.WINDOW_HEIGHT/2.0 - player.frameHeight / 2.0);
+                                 Game.WINDOW_HEIGHT/2.0 - player.frameHeight / 2.0);
         
         worldTransform.translate(-player.x, -player.y);
         
@@ -228,6 +245,7 @@ public class Game extends JPanel implements Runnable, KeyListener {
             }
         }
 
+        Game.physics.Update(deltaTime);
         // System.out.println("Game tick! At " + 1.0/deltaTime + "TPS");
     }
 
@@ -258,7 +276,9 @@ public class Game extends JPanel implements Runnable, KeyListener {
         //draw player obj
         // player.Draw(g);
         testMap.ResetResponsiblities();
+
         testMap.RenderResponsibly(player);
+        // testMap.RenderResponsibly(badguy);
         //draw the weapon projectiles
         gun.Draw(g);
 
@@ -282,9 +302,12 @@ public class Game extends JPanel implements Runnable, KeyListener {
             }
         }
 
+        Game.physics.Draw(g);
+
         g.setTransform(defaultTransform);
-        this.DrawFPS(g);
         
+        this.DrawFPS(g);
+
         Panel.Draw(g);
     }
 
