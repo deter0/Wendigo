@@ -48,11 +48,14 @@ class Panel {
     private Vector2 movementStartMousePos;
 
     private static String inputContext = null;
-    private static String inputInput = null;
+    public static int inputMaxSize = 128;
+    private static boolean inputOpen = false;
+    private static boolean inputJustClosed = false;
+    protected static String inputInput = null;
     
     public static void Draw(Graphics2D g) {
-        if (inputContext != null) {
-            if (Game.inputBlockers.indexOf("PanelInputField") == -1)
+        if (Panel.inputOpen) {
+            if (!Game.inputBlockers.contains("PanelInputField"))
                 Game.inputBlockers.add("PanelInputField");
             
             g.setColor(new Color(0, 0, 0, 100));
@@ -60,7 +63,7 @@ class Panel {
             
             Rectangle inputRectangle = new Rectangle();
             inputRectangle.width = Game.WINDOW_WIDTH/4 + 200;
-            inputRectangle.height = 300;
+            inputRectangle.height = 80;
             
             inputRectangle.x = (int)(Game.WINDOW_WIDTH/2.0 - inputRectangle.width/2.0);
             inputRectangle.y = (int)(Game.WINDOW_HEIGHT/2.0 - inputRectangle.height/2.0);
@@ -69,21 +72,61 @@ class Panel {
             GG.fillRect(inputRectangle);
             
             g.setColor(Color.WHITE);
+
             g.setFont(TileMapEditor.ED_FONT);
+            FontMetrics fm = g.getFontMetrics();
+
+            int y = (int)(inputRectangle.y + Panel.PADDING + fm.getHeight());
+            int textWidth = fm.stringWidth(Game.textInputBuffer);
+
+            if (Game.textInputBuffer.length() >= inputMaxSize) {
+                Game.textInputBuffer = Game.textInputBuffer.substring(0, inputMaxSize);
+            }
+
+            g.drawString(inputContext, (int)(inputRectangle.x + Panel.PADDING), y);
+            y += 2*Panel.PADDING;
             
-            g.drawString(Game.textInputBuffer, inputRectangle.x, inputRectangle.y);
+            g.setColor(new Color(48, 48, 48));
+            g.fillRect(inputRectangle.x, y, inputRectangle.width, fm.getHeight()*2);
+
+            g.setColor(new Color(200, 200, 200));
+            g.drawString(Game.textInputBuffer, (int)(inputRectangle.x + Panel.PADDING), (int)(y + fm.getHeight()*1.25));
+
+            y += fm.getHeight()*1.25;
+
+            int value = (int)((Math.sin(10*Game.now())+1)*0.5*255);
+            int x = (int)(inputRectangle.x + PADDING + textWidth);
+
+            g.setColor(new Color(255, 255, 255, value));
+            g.drawLine(x, y+4, x, y - fm.getHeight()+4);
+
+            if (Game.keysDown[KeyEvent.VK_ENTER] == true || Game.keysDown[KeyEvent.VK_ESCAPE] == true) {
+                System.out.println("Closing!");
+                Panel.inputContext = null;
+                inputInput = Game.textInputBuffer + ""; // Make a duplicate?  ¯\_(ツ)_/¯
+                Panel.inputOpen = false;
+                Panel.inputJustClosed = true;
+            }
         } else {
             Game.inputBlockers.remove("PanelInputField");
         }
     }
 
-    public static String InputField(String context) {
-        if (Panel.inputContext == null) {
-            // Game.textInputBuffer = "";
+    public static boolean InputField(String context, String initialText) {
+        if (Panel.inputJustClosed) {
+            Panel.inputJustClosed = false;
+            return true;
         }
-        Panel.inputContext = context;
+
+        if (Panel.inputContext == null) {
+            Panel.inputContext = context;
+            Panel.inputJustClosed = false;
+            Panel.inputInput = null;
+            Panel.inputOpen = true;
+            Game.textInputBuffer = initialText != null ? initialText : "";
+        }
         
-        return Game.textInputBuffer;
+        return false;
     }
 
     public Panel() {
@@ -631,6 +674,8 @@ class Panel {
 
     protected Vector2 lastButtonSize;
     public boolean Button(String text, Vector2 position, Vector2 size) {
+        if (text == null) text = "N/A";
+
         Rectangle dims = CalculateButtonDims(text, position, size);
 
         position.x = dims.x;
