@@ -4,12 +4,17 @@ import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
 import javax.imageio.ImageIO;
+import java.util.Random;
 
 public class Enemy extends GameObject {
-    private int x, y;
-    private final int RADIUS = 25; // Radius of the red circle
-    private final int SPEED = 200; // Speed of the enemy
 
+    private Random interval = new Random();
+    public int x, y;
+    private final int RADIUS = 25; // Radius of the red circle
+    private int speed = 200; // Speed of the enemy
+    public static final int ENEMY_RADIUS = 100; // Radius of the enemy's movement compared to each other.
+    public static final int ALTER_SPEED = 50; // Speed of the enemy when they are close to each other.
+    public static final int PLAYER_RADIUS = 50; // Radius of the player's movement compared to the enemy.
     private double targetDX = 0; // Target direction X
     private double targetDY = 0; // Target direction Y
     private boolean direction; //false = right, true = left
@@ -22,8 +27,8 @@ public class Enemy extends GameObject {
     private double attackTimer = 0; // Timer for triggering attacks
     private final int RUN_FRAMES = 7;
     private final int ATTACK_FRAMES = 5;
-    private final double FRAME_DURATION = 0.1; // 0.1 seconds per frame
-    private final double ATTACK_INTERVAL = 3.0; // 3 seconds between attacks;
+    private final double FRAME_DURATION = 0.2; // 0.2 seconds per frame
+    private final double ATTACK_INTERVAL = interval.nextDouble(1, 10); // 3 seconds between attacks;
 
     public Enemy(int startX, int startY) {
         this.x = startX;
@@ -86,9 +91,8 @@ public class Enemy extends GameObject {
         }
         
         
-        g.setColor(Color.RED);
-        g.fillRect(x, y, 10, 10);
-        g.fillRect(Game.player.x, Game.player.y, 10, 10);
+        // g.setColor(Color.RED);
+        // g.drawOval(x, y, ENEMY_RADIUS, ENEMY_RADIUS);
         // Draw the image
         g.drawImage(currentFrame, transform, null);
     }
@@ -98,14 +102,17 @@ public class Enemy extends GameObject {
     public void Update(double deltaTime) {
         attackTimer += deltaTime;
         frameTimer += deltaTime;
-
-        if (attackTimer >= ATTACK_INTERVAL) {
+    
+        if (Math.sqrt(Math.pow(Game.player.x - x, 2) + Math.pow(Game.player.y - y, 2)) < PLAYER_RADIUS || x == Game.player.x) {
             // Start attacking
             isAttacking = true;
-            attackTimer = 0;
-            currentAttackFrame = 0;
+            if (attackTimer >= ATTACK_INTERVAL) {
+                attackTimer = 0;
+                currentAttackFrame = 0;
+            }
+            Game.player.health --;
         }
-
+    
         if (isAttacking) {
             if (frameTimer >= FRAME_DURATION) {
                 frameTimer = 0;
@@ -116,24 +123,44 @@ public class Enemy extends GameObject {
             }
             return; // Skip movement while attacking
         }
-
+    
         // Update run animation frame
         if (frameTimer >= FRAME_DURATION) {
             frameTimer = 0;
             currentRunFrame++;
         }
-
+    
         // Follow the player
         int playerX = Game.player.x;
         int playerY = Game.player.y;
-
+    
         double dx = playerX - x;
         double dy = playerY - y;
+    
+        // Check for nearby enemies and adjust direction
+        for (Enemy other : Game.enemies) { // Assuming Game.enemies is a list of all enemies
+            if (other != this) {
+                double distance = Math.sqrt(Math.pow(other.x - this.x, 2) + Math.pow(other.y - this.y, 2));
+                if (distance < ENEMY_RADIUS) {
+                    // Move away from the other enemy
+                    double repelDX = this.x - other.x;
+                    double repelDY = this.y - other.y;
+                    double repelLength = Math.sqrt(repelDX * repelDX + repelDY * repelDY);
+                    if (repelLength > 0) {
+                        dx += (repelDX / repelLength) * ALTER_SPEED;
+                        dy += (repelDY / repelLength) * ALTER_SPEED;
+                    }
+                }
+            }
+        }
+    
         setTargetDirection(dx, dy);
-
-        x += targetDX * SPEED * deltaTime;
-        y += targetDY * SPEED * deltaTime;
+    
+        // Move the enemy
+        x += targetDX * speed * deltaTime;
+        y += targetDY * speed * deltaTime;
     }
+    
 
     public void setTargetDirection(double dx, double dy) {
         double length = Math.sqrt(dx * dx + dy * dy);
@@ -145,6 +172,7 @@ public class Enemy extends GameObject {
             this.targetDY = 0;
         }
     }
+
 
     // Getter methods
     public int getX() {

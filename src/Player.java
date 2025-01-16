@@ -11,6 +11,8 @@ public class Player extends GameObject {
     private BufferedImage idleSpriteSheet, runSpriteSheet;
     private BufferedImage[] idleFrames, runFrames;
     private BufferedImage[] currentFrames; // Active frame set
+    public long lastDashed; //check how long its been sicne player has dashed
+    public boolean canDash = true; //check if player can dash
     private int currentFrame = 0;
     protected int frameWidth;
     protected int frameHeight;
@@ -21,6 +23,7 @@ public class Player extends GameObject {
     private long lastFrameTime = 0;
     private final int FRAME_DELAY = 100; // 100ms between frames
     private boolean isMoving = false;
+    public int health;
 
     // Afterimage data
     private ArrayList<AfterimageData> afterimages = new ArrayList<>();
@@ -29,6 +32,7 @@ public class Player extends GameObject {
     private final int DASH_DISTANCE = 500;
 
     public Player(int health, int maxHealth) {
+        this.health = health;
         try {
             // Load idle sprite sheet
             idleSpriteSheet = ImageIO.read(new File("res/PlayerIdle.png"));
@@ -55,6 +59,11 @@ public class Player extends GameObject {
     }
 
     public void Draw(Graphics2D g) {
+        // Check if the player can dash again
+        if (lastDashed != 0 && System.currentTimeMillis() - lastDashed > 3000) {
+            canDash = true;
+        }
+        
         // Draw afterimages
         long currentTime = System.currentTimeMillis();
         for (AfterimageData afterimage : afterimages) {
@@ -127,7 +136,9 @@ public class Player extends GameObject {
             dx += 1;
         }
 
-        if (Game.IsKeyPressed(KeyEvent.VK_SPACE) && (dx != 0 || dy != 0)) {
+        if (Game.IsKeyPressed(KeyEvent.VK_SPACE) && (dx != 0 || dy != 0) && canDash) {
+            canDash = false;
+            lastDashed = System.currentTimeMillis();
             // Add afterimages
             Vector2 offset = new Vector2(dx, dy).normalize(); // Make sure dashing is even on diagonals
             for (int i = 0; i < MAX_AFTERIMAGES; i++) {

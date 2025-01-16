@@ -517,7 +517,7 @@ class TileMapEditor {
         }
     }
 
-    String[] toolButtons = {"Select", "Paint", "Fill", "Delete"};
+    String[] toolButtons = {"Select", "Paint", "Fill", "Delete", "Urethra"};
     String currentTool = "Select";
 
     private boolean mapCanSelectBlank = false;
