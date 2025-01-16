@@ -707,11 +707,26 @@ class TileMap {
         TileMapLayer groundLayer = this.GetGroundLayer();
         if (groundLayer != null) {
             for (GameObject o : this.renderingResponsiblity) {
+                g.setColor(Color.RED);
+                GG.drawRect(o.position, o.size);
+
                 Vector2 centreBottomPos = o.position.add(new Vector2(o.size.x/2.0, o.size.y));
-                Tile t = this.GetTileAtWorldPosition(centreBottomPos, groundLayer);
-                if (t != null) {
-                    t.objectsOnTile.add(o);
-                    // System.out.println(t);
+
+                g.setColor(Color.RED);
+                GG.drawOval(centreBottomPos, new Vector2(10, 10));
+
+                Tile t1 = this.GetTileAtWorldPosition(centreBottomPos, groundLayer);
+                Tile t2 = null;
+
+                if (t1 != null)
+                    t2 = groundLayer.GetTile(t1.x, t1.y + 1);
+
+                if (t2 != null) {
+                    t2.objectsOnTile.add(o);
+                } else if (t1 != null) {
+                    t1.objectsOnTile.add(o);
+                } else {
+                    o.Draw(g);
                 }
             }
         }
@@ -753,9 +768,7 @@ class TileMap {
     
                     int bottomY = t.y + t.h;
                     int newIndex = (bottomY * this.width + t.x);
-    
-                    // System.out.println("Set position of compound" + t.y + " ->" + bottomY);
-    
+        
                     layerOrdered.get(newIndex).add(t);
                 }
             }
@@ -769,20 +782,27 @@ class TileMap {
                 for (int l = 0; l < tiles.size(); l++) {
                     Tile t = tiles.get(l);
 
-                    if (t == null) continue;
-
                     if (!t.IsNull()) {
                         Vector2 tilePosition = LocalToWorldVectorPositional(new Vector2(t.x, t.y));
                         Vector2 tileSize = LocalToWorldVectorScalar(new Vector2(t.w, t.h));
                         
                         t.Draw(g, tilePosition.x, tilePosition.y, tileSize.x, tileSize.y);
                     }
+                }
+            }
+            for (int x = 0; x < this.width; x++) {
+                int index = y * this.width + x;
+                ArrayList<Tile> tiles = layerOrdered.get(index);
+  
+                for (int l = 0; l < tiles.size(); l++) {
+                    Tile t = tiles.get(l);
+
                     for (GameObject o : t.objectsOnTile) {
                         o.Draw(g);
                     }
+                }
             }
         }
-    }
 
         // System.out.println("Drew " + drewCount);
     }

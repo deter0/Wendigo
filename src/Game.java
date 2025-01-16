@@ -188,7 +188,7 @@ public class Game extends JPanel implements Runnable, KeyListener {
         worldTransform = new AffineTransform();
         
         worldTransform.translate(Game.WINDOW_WIDTH/2.0 - player.frameWidth / 2.0,
-        Game.WINDOW_HEIGHT/2.0 - player.frameHeight / 2.0);
+                                 Game.WINDOW_HEIGHT/2.0 - player.frameHeight / 2.0);
         
         worldTransform.translate(-player.x, -player.y);
         
@@ -251,6 +251,7 @@ public class Game extends JPanel implements Runnable, KeyListener {
         //draw player obj
         // player.Draw(g);
         testMap.ResetResponsiblities();
+
         testMap.RenderResponsibly(player);
         //draw the weapon projectiles
         gun.Draw(g);

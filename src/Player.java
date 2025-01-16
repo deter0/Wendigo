@@ -160,8 +160,9 @@ public class Player extends GameObject {
         // Switch between animations based on movement
         currentFrames = isMoving ? runFrames : idleFrames;
 
-        this.position = new Vector2(x, y);
-        this.size = new Vector2(this.frameWidth, this.frameHeight);
+        double visualHeight = this.frameHeight * 1.7;
+        this.position = new Vector2(x - this.frameWidth/2.0, y-visualHeight/2.0);
+        this.size = new Vector2(this.frameWidth, visualHeight);
     }
 
     // Data structure for afterimages
