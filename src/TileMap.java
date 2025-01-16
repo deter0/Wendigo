@@ -5,6 +5,7 @@ import java.util.Arrays;
 
 import javax.imageio.ImageIO;
 import java.io.*;
+import java.net.URI;
 import java.awt.image.*;
 
 // Class for loading and managing SpriteSheet. See: https://en.wikipedia.org/wiki/Texture_atlas
@@ -154,10 +155,21 @@ class SpriteSheet {
         TileMap.GoToEnd(br);
     }
     public void SaveToFile(FileWriter fw, TileMap map) throws IOException {
+        File resFolder = new File("./");
+        File imageFile = new File(this.imagePath);
+        
+        URI path1 = resFolder.toURI();
+        URI path2 = imageFile.toURI();
+        
+        URI relativePath = path1.relativize(path2);
+        String path = relativePath.getPath();
+        
+        System.out.println("[LOG] Converted path: " + this.imagePath + " => " + path);
+        
         fw.write("__SPRITE SHEET__\n");
         fw.write("name=" + this.name + "\n");
-        fw.write("image_path=" + this.imagePath + "\n");
-        fw.write("tile_size="+this.tileSize+"\n");
+        fw.write("image_path=" + path + "\n");
+        fw.write("tile_size=" + this.tileSize + "\n");
 
         fw.write("delted_tiles_indicies=");
 
