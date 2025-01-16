@@ -624,11 +624,11 @@ class TileMapEditor {
     public void Update(double dt) {
         if (this.map != null) {
             if (Game.IsKeyPressed(KeyEvent.VK_S) && Game.IsKeyDown(KeyEvent.VK_CONTROL)) {
-                this.map.Save("./res/tempMapFile.wmap");
+                this.map.Save("./res/map.wmap");
             }
 
             if (Game.IsKeyPressed(KeyEvent.VK_Z) && Game.IsKeyDown(KeyEvent.VK_CONTROL)) {
-                this.map.LoadFromFile("./res/tempMapFile.wmap");
+                this.map.LoadFromFile("./res/map.wmap");
                 this.sslReset();
                 this.mapSelection.clear();
                 this.currentTool = "Select";

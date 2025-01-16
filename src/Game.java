@@ -182,7 +182,7 @@ public class Game extends JPanel implements Runnable, KeyListener {
         
         this.editor = new TileMapEditor(testMap);
         
-        this.testMap.LoadFromFile("./res/tempMapFile.wmap");
+        this.testMap.LoadFromFile("./res/map.wmap");
         // Maximize window
         this.parentJFrame.setExtendedState( this.parentJFrame.getExtendedState()|JFrame.MAXIMIZED_BOTH );
     }
