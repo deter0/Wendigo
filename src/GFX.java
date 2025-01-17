@@ -8,7 +8,7 @@ class GFXManager {
     private ArrayList<GFX> activeGFXS = new ArrayList<>();
 
     public GFXManager() {
-        String[] essentialGfxsNames = {"smoke_cloud", "gfx_eye_of_rah", "real_rah", "gfx_star_spin"}; 
+        String[] essentialGfxsNames = {"smoke_cloud", "gfx_slash", "gfx_eye_of_rah", "real_rah", "gfx_star_spin"}; 
         if (this.loadedGFXS == null) {
             this.loadedGFXS = new HashMap<>();
 
@@ -30,7 +30,7 @@ class GFXManager {
         while (iterator.hasNext()) {
             
             GFX gfx = iterator.next();
-            if (gfx.tile.animPlayedCount > 1) {
+            if (gfx.tile.animPlayedCount >= 1) {
                 System.out.println("Removed");
                 iterator.remove();
                 continue;
@@ -55,18 +55,18 @@ class GFXManager {
         return this.loadedGFXS.get(gfx);
     }
 
-    private Vector2 GetGFXSize(Tile gfxTile) {
+    public Vector2 GetGFXSize(Tile gfxTile) {
         if (gfxTile == null || Game.currentMap == null) return new Vector2();
 
         return Game.currentMap.LocalToWorldVectorScalar(new Vector2(gfxTile.w, gfxTile.h));
     }
 
-    private Vector2 GetGFXSize(String gfxName) {
+    public Vector2 GetGFXSize(String gfxName) {
         Tile gfx = GetGFX(gfxName);
         return GetGFXSize(gfx);
     }
 
-    public void PlayGFXOnce(String gfxName, Vector2 position, double speed) {
+    public void PlayGFXOnce(String gfxName, Vector2 position, double speed, boolean flip, GameObject attachTo) {
         Tile gfx = GetGFX(gfxName);
         Vector2 gfxSize = GetGFXSize(gfxName);
 
@@ -79,25 +79,55 @@ class GFXManager {
         gfx.animFPS *= speed;
 
         position = position.sub(gfxSize.scale(0.5));
-        gfx.ResetAnimation();
 
-        activeGFXS.add(new GFX(gfx, position));
+        GFX fx = new GFX(gfx, position);
+        fx.flipped = flip;
+        fx.attachedTo = attachTo;
+
+        activeGFXS.add(fx);
+    }
+
+    public void PlayGFXOnce(String gfxName, Vector2 position) {
+        PlayGFXOnce(gfxName, position, 1.0, false, null);
+    }
+
+    public void PlayGFXOnce(String gfxName, Vector2 position, double speed) {
+        PlayGFXOnce(gfxName, position, speed, false, null);
+    }
+
+    public void PlayGFXOnce(String gfxName, Vector2 position, double speed, boolean flipped) {
+        PlayGFXOnce(gfxName, position, speed, false, null);
     }
 }
 
 public class GFX extends GameObject {
-    Tile tile;
+    protected Tile tile;
+
+    public boolean flipped = false;
+    public GameObject attachedTo = null;
+    public Vector2 offsetPosition = new Vector2();
 
     public GFX(Tile gfxTile, Vector2 position) {
         super();
+
         this.tile = gfxTile;
-        this.position = position;
+        this.offsetPosition = position;
+        this.size = Game.gfxManager.GetGFXSize(gfxTile);
+        
+        gfxTile.ResetAnimation();
     }
 
     public void Draw(Graphics2D g) {
         if (Game.currentMap == null) return;
 
-        Vector2 gfxSize = Game.currentMap.LocalToWorldVectorScalar(new Vector2(tile.w, tile.h));
-        tile.Draw(g, position.x, position.y, gfxSize.x, gfxSize.y);
+        Vector2 position = new Vector2(this.offsetPosition.x, this.offsetPosition.y);
+
+        if (attachedTo != null) {
+            position = position.add(attachedTo.position);
+        }
+
+        this.position = position;
+
+        tile.Draw(g, position.x, position.y, this.size.x, this.size.y, flipped);
     }
 }

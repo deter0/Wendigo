@@ -22,6 +22,9 @@ public class Player extends GameObject {
     public Vector2 lookAtPoint = new Vector2();
     public Vector2 acceleration = new Vector2();
 
+    public double dashCooldown = 2.0;
+    private double lastTimeDashed = 0;
+
     public Player(String name, int health, int maxHealth) {
         this.health = health;
         this.name = name;
@@ -51,7 +54,6 @@ public class Player extends GameObject {
     }
 
     private void HumanoidDraw(Graphics2D g) {
-        // Check if the player can dash again
         Tile currentAnimatedTile = this.animations.get(this.state);
         Vector2 size = new Vector2(100, 100);
 
@@ -60,9 +62,22 @@ public class Player extends GameObject {
         if (currentAnimatedTile != null) {
             size = Game.currentMap.LocalToWorldVectorScalar(new Vector2(currentAnimatedTile.w, currentAnimatedTile.h));
 
-            currentAnimatedTile.Draw(g, this.position.x, this.position.y, size.x, size.y, lookAtDelta.x < 0 ? true : false);
+            double transparency = 1.0;
+            double deltaDash = Game.now() - this.lastTimeDashed;
 
-            // System.out.println(lookAtDelta.x);
+            if (deltaDash < this.dashCooldown) {
+                transparency = (Math.sin(Game.now()*24)/2.0 + 0.5)*0.3 + 0.5;
+            }
+
+            currentAnimatedTile.Draw(
+                g,
+                this.position.x,
+                this.position.y,
+                size.x,
+                size.y,
+                lookAtDelta.x < 0 ? true : false,
+                transparency
+            );
         }
 
         this.size = size;
@@ -77,6 +92,12 @@ public class Player extends GameObject {
 
         this.velocity = this.velocity.add(this.acceleration.scale(deltaTime));
         this.acceleration = this.acceleration.scale(0.75);
+    }
+
+    public void MeleeAttack() {
+        Vector2 lookAtDelta = this.lookAtPoint.sub(this.position);
+
+        Game.gfxManager.PlayGFXOnce("gfx_slash", this.size.scale(0.5), 2.0, lookAtDelta.x < 0 ? true : false, this);
     }
 
     public void Update(double deltaTime) {
@@ -100,19 +121,22 @@ public class Player extends GameObject {
         this.lookAtPoint = Game.worldMousePos;
 
         if (Game.IsKeyPressed(KeyEvent.VK_SPACE)) {
-            Game.gfxManager.PlayGFXOnce("smoke_cloud", this.position.add(this.size.scale(0.5)), 1.5);
+            double deltaDashed = Game.now() - lastTimeDashed;
 
-            if (this.velocity.magnitude() > 0) {
-                this.velocity = this.velocity.add(this.velocity.normalize().scale(SPEED * 24.0));
+            if (deltaDashed > dashCooldown && this.velocity.magnitude() > 0) {
+                Game.gfxManager.PlayGFXOnce("smoke_cloud", this.position.add(this.size.scale(0.5)), 1.5);
+
+                this.velocity = this.velocity.add(this.velocity.normalize().scale(SPEED * 36.0));
+                this.lastTimeDashed = Game.now();
             }
+        }
+
+        if (Game.IsKeyPressed(KeyEvent.VK_Q)) {
+            MeleeAttack();
         }
 
         if (Game.IsKeyPressed(KeyEvent.VK_R)) {
             Game.gfxManager.PlayGFXOnce("real_rah", this.position.add(this.size.scale(0.5)).sub(new Vector2(0, this.size.y)), 1.5);
-        }
-
-        if (Game.IsKeyPressed(KeyEvent.VK_F)) {
-            Game.gfxManager.PlayGFXOnce("gfx_star_spin", this.position.add(this.size.scale(0.5)), 1.5);
         }
 
         HumanoidUpdate(deltaTime);

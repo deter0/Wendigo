@@ -246,11 +246,12 @@ public class Game extends JPanel implements Runnable, KeyListener {
         if (Game.IsKeyPressed(KeyEvent.VK_E)) {
             this.editorEnabled = !this.editorEnabled;
             if (this.editorEnabled && Game.IsKeyDown(KeyEvent.VK_SHIFT)) {
-                this.editor = new TileMapEditor(this.currentMap);
+                this.editor = new TileMapEditor(Game.currentMap);
             }
         }
 
         Game.physics.Update(deltaTime);
+        Game.physics.PostUpdate();
         // System.out.println("Game tick! At " + 1.0/deltaTime + "TPS");
     }
 
@@ -307,7 +308,7 @@ public class Game extends JPanel implements Runnable, KeyListener {
             e.Draw(g);
         }
         
-        Game.physics.Draw(g);
+        // Game.physics.Draw(g);
         
         g.setTransform(defaultTransform);
 

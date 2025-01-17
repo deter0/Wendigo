@@ -134,6 +134,10 @@ public class Physics {
         }
     }
     
+    public void PostUpdate() {
+        this.physicsObjects.clear();
+    }
+
     public void Draw(Graphics2D g) {
         for (GameObject o : this.physicsObjects) {
             o.DrawOutline(g);
@@ -144,6 +148,5 @@ public class Physics {
             GG.drawRect(r);
         }
 
-        this.physicsObjects.clear();
     }
 }

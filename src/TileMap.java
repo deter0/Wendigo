@@ -527,7 +527,7 @@ class Tile {
         return true;
     }
 
-    public void Draw(Graphics2D g, double x, double y, double w, double h, boolean flip) {
+    public void Draw(Graphics2D g, double x, double y, double w, double h, boolean flip, double transparency) {
         if (this.textureIndex == -1 || this.textureSheet == null) return;
 
         int tileSize = this.textureSheet.tileSize;
@@ -543,7 +543,8 @@ class Tile {
         if (this.animated) {
             this.animCurrentFrame = (int)(((Game.now()-animStart) * this.animFPS) % (this.animNumFramesX * this.animNumFramesY));
 
-            this.animPlayedCount = (int)(((Game.now()-animStart) * this.animFPS) / (this.animNumFramesX * this.animNumFramesY));
+            // this.animPlayedCount = (int)(((Game.now()-animStart) * this.animFPS) / (this.animNumFramesX * this.animNumFramesY));
+            this.animPlayedCount = ((int)((Game.now() - animStart) * this.animFPS) / (this.animNumFramesX * this.animNumFramesY)) % (this.animNumFramesX * this.animNumFramesY);
 
             frameOffsetX = (this.animCurrentFrame % this.animNumFramesX);
             frameOffsetY = 0;//(this.currentFrame / this.animNumFramesY);
@@ -552,23 +553,37 @@ class Tile {
         sx = (sx+(frameOffsetX*this.w))*tileSize;
         sy = (sy+(frameOffsetY*this.h))*tileSize;
 
+        Composite prevComp = g.getComposite();
+
+        float alpha = (float)transparency;
+        AlphaComposite composite = AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha);
+        g.setComposite(composite);
+        
         if (flip) {
             g.drawImage(
                 this.textureSheet.GetImage(g),
                 (int) x, (int) y, (int) (x + w), (int) (y + h),  // Destination rectangle
                 sx + sw, sy, sx, sy + sh,                        // Source rectangle (flipped horizontally)
-                GG.COLOR_OPAQUE, null                            // Transparency and observer
+                GG.COLOR_OPAQUE, null      // Transparency and observer
             );
         } else {
-            g.drawImage(this.textureSheet.GetImage(g),
-                        (int)x, (int)y, (int)(x+w), (int)(y+h),
-                        sx, sy, sx+sw, sy+sh,
-                        GG.COLOR_OPAQUE, null);
+            g.drawImage(
+                this.textureSheet.GetImage(g),
+                (int)x, (int)y, (int)(x+w), (int)(y+h),
+                sx, sy, sx+sw, sy+sh,
+                GG.COLOR_OPAQUE, null      // Transparency and observer
+            );
         }
+                
+        g.setComposite(prevComp);
     }
 
     public void Draw(Graphics2D g, double x, double y, double w, double h) {
-        this.Draw(g, x, y, w, h, false);
+        this.Draw(g, x, y, w, h, false, 1.0);
+    }
+
+    public void Draw(Graphics2D g, double x, double y, double w, double h, boolean flip) {
+        this.Draw(g, x, y, w, h, flip, 1.0);
     }
 
     public String toString() {
