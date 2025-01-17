@@ -5,25 +5,29 @@ import java.awt.Graphics2D;
 import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
 import java.io.File;
+import java.nio.Buffer;
+
 import javax.imageio.ImageIO;
 
-public class UI {
+public class HUD {
 
     private BufferedImage dash;
     private BufferedImage bullet;
     private BufferedImage health;
+    private BufferedImage gameOver;
     private double elapsedTime = 0;
     //fixed position for the UI
     int fixedX = 100;
     int fixedY = 100;
     
 
-    public UI() {
+    public HUD() {
         try {
             // Load UI elements
             dash = ImageIO.read(new File("res/dashUI.png"));
             bullet = ImageIO.read(new File("res/Bullet.png"));
             health = ImageIO.read(new File("res/health.png"));
+            gameOver = ImageIO.read(new File("res/deathSkull.png"));
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -53,20 +57,35 @@ public class UI {
         // Draw the dash image
         g.drawImage(dash, dashTransform, null);
         if (Game.player.canDash) {
-            g.drawString("Ready", fixedX + 75, fixedY + 120);
+            g.drawString("Dash: Ready", fixedX + 75, fixedY + 120);
         } else {
-            g.drawString("Cooldown " + ((double)(System.currentTimeMillis() - Game.player.lastDashed) / 1000), fixedX + 80, fixedY + 120);
+            g.drawString("Dash: Cooling Down " + ((double)(System.currentTimeMillis() - Game.player.lastDashed) / 1000), fixedX + 80, fixedY + 120);
         }
         //Draw bullet image and corrosponding things
         g.drawImage(bullet, fixedX, fixedY + 15, null);
         if (Game.gun.magazine > 0){
-            g.drawString("x " + String.valueOf(Game.gun.magazine), fixedX + 75, fixedY + 45);}
+            g.drawString("Ammo x " + String.valueOf(Game.gun.magazine), fixedX + 75, fixedY + 45);}
         else{
-            g.drawString(String.valueOf("Reloading " + ((double)(System.currentTimeMillis() - Game.gun.reloadStart) / 1000)), fixedX + 75, fixedY + 45);
+            g.drawString(String.valueOf("Ammo Reloading " + ((double)(System.currentTimeMillis() - Game.gun.reloadStart) / 1000)), fixedX + 75, fixedY + 45);
         }
 
+        if (Game.player.health > 0) {
+            g.drawString("Health x " + Game.player.health, fixedX + 75, fixedY - 20);
+        } else {
+            g.drawString("Health x 0", fixedX + 75, fixedY - 20);
+        }
         //Draw health image and corrosponding things
         g.drawImage(health, healthTransform, null);
-        g.drawString("x " + String.valueOf(Game.player.health), fixedX + 75, fixedY - 20);
+
+        //player death screen once health reaches 0
+        if (Game.player.health <= 0) {
+            Game.player.alive = false;
+            g.setColor(Color.RED);
+            g.setFont(Game.font64);
+            g.drawImage(gameOver, Game.WINDOW_WIDTH / 2 - 300, Game.WINDOW_HEIGHT / 2 - 300, null);
+            g.drawString("You died...", Game.WINDOW_WIDTH / 2 - 150, Game.WINDOW_HEIGHT / 2 + 150);
+            //use this to display score when score functionality is added
+            // g.drawString(Game.score + " points", Game.WINDOW_WIDTH / 2 - 150, Game.WINDOW_HEIGHT / 2 + 200);
+        }
     }
 }

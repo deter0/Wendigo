@@ -13,13 +13,14 @@ public class Weapon {
     private int fireRate;
     private int dmg;
     private Player owner; // Reference to the player
-    private ArrayList<Projectile> projectiles; // List of projectiles
+    public ArrayList<Projectile> projectiles; // List of projectiles
     private long lastFireTime = 0; // Track time since the last shot
     private BufferedImage bullet;
     public int magazine = 30;
     private boolean canShoot;
+    private int bulletRadius = 5;
     public long reloadStart;
-    private long reloadTime = 2500;
+    private long reloadTime = 1250;
 
 
 
@@ -119,13 +120,13 @@ public class Weapon {
                 // Create an AffineTransform to flip the image horizontally
                 AffineTransform transform = new AffineTransform();
                 // Translate to the position first
-                transform.translate(x + bullet.getWidth() - 35, y - 27);
+                transform.translate(x + 12, y + 32);
                 // Scale horizontally by -1 to flip the image
                 transform.scale(-1, 1);
                 g.drawImage(bullet, transform, null);
             } else {
                 // Draw the projectile adjusting so its centered correctly and coming out of the gun
-                g.drawImage(bullet, x - 5, y - 27, null);
+                g.drawImage(bullet, x + 25, y + 32, null);
             }
         }
     

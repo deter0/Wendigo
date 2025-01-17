@@ -24,6 +24,7 @@ public class Player extends GameObject {
     private final int FRAME_DELAY = 100; // 100ms between frames
     private boolean isMoving = false;
     public int health;
+    public boolean alive = true;
 
     private double scale = 2.5;
 
@@ -133,6 +134,7 @@ public class Player extends GameObject {
         dx = 0;
         dy = 0;
 
+        if (alive){
         if (Game.IsKeyDown(KeyEvent.VK_W)) {
             dy -= 1;
         }
@@ -145,6 +147,7 @@ public class Player extends GameObject {
         if (Game.IsKeyDown(KeyEvent.VK_D)) {
             dx += 1;
         }
+    }
 
         if (Game.IsKeyPressed(KeyEvent.VK_SPACE) && (dx != 0 || dy != 0) && canDash) {
             canDash = false;
