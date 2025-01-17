@@ -2,62 +2,71 @@ import java.awt.*;
 import java.awt.event.*;
 import java.awt.geom.*;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.io.*;
 import java.awt.image.*;
 import javax.imageio.ImageIO;
 import javax.swing.JFileChooser;
 
+/*
+ * Note to Mr. Anthony: Partially missing documentation. It is 7 A.M and I have been up all night documenting code.
+ * The player is not even likely to interact with the editor. Therefore some parts of this file are undocumented.
+ * Forgive us Mr. Anthony.
+ */
 
 class TileMapEditor {
-    public TileMap map;
+    public TileMap map;  // The tile map being edited
 
-    static Font ED_FONT;
-    static int ED_FONT_SIZE = 14;
+    static Font ED_FONT;  // The font used for displaying text in the editor
+    static int ED_FONT_SIZE = 14;  // The font size for editor text
 
-    private TileMapLayer currentLayer;
-    private SpriteSheet currentSelectedSheet;
-    private JFileChooser fileChooser;
+    private TileMapLayer currentLayer;  // The currently selected layer in the map
+    private SpriteSheet currentSelectedSheet;  // The current sprite sheet selected for editing
+    private JFileChooser fileChooser;  // File chooser for opening/saving files
 
-    private ArrayList<Tile> mapSelection = new ArrayList<>();
+    private ArrayList<Tile> mapSelection = new ArrayList<>();  // List of tiles selected for map editing
 
-    private SpriteSheet sslSheet = null;
-    private String sslError = null;
-    private boolean sslVisible = false;
-    private BufferedImage sslImage = null;
-    private boolean sslIsNew = true;
-    private String sslImgPath = null;
-    private boolean sslLeftPanelOpen = true;
-    private boolean sslNextSelectionIsCollidorRect = false;
-    private boolean sslVisualizeCollidors = false;
+    private SpriteSheet sslSheet = null;  // The sprite sheet for the selection tool
+    private String sslError = null;  // Error message if there is an issue with the selection tool
+    private boolean sslVisible = false;  // Whether the selection tool is visible
+    private BufferedImage sslImage = null;  // The image used for the selection tool
+    private boolean sslIsNew = true;  // Flag indicating if the selection tool is newly created
+    private String sslImgPath = null;  // Path to the image file used by the selection tool
+    private boolean sslLeftPanelOpen = true;  // Whether the left panel of the editor is open
+    private boolean sslNextSelectionIsCollidorRect = false;  // Whether the next selection should be a collider rectangle
+    private boolean sslVisualizeCollidors = false;  // Whether to visualize colliders in the selection tool
     
-    private double sslZoomTarget = 3.0;
-    private double sslZoom = 3.0;
-    private Vector2 sslScroll = new Vector2();
+    private double sslZoomTarget = 3.0;  // The target zoom level for the selection tool
+    private double sslZoom = 3.0;  // The current zoom level for the selection tool
+    private Vector2 sslScroll = new Vector2();  // The scroll position for the selection tool
 
-    private ArrayList<Tile> sslSelection = new ArrayList<>();
-    private Tile sslSelectedKeyTile;
-    private Vector2 sslSelectionMouseStart = null;
+    private ArrayList<Tile> sslSelection = new ArrayList<>();  // Tiles selected by the selection tool
+    private Tile sslSelectedKeyTile;  // The key tile selected for the current operation
+    private Vector2 sslSelectionMouseStart = null;  // Starting mouse position for the selection tool
+
+    Panel sheetEdPanel = new Panel();
     
+    // Resets the selection tool (ssl) to its initial state
     private void sslReset() {
-        this.sslVisible = false;
-        this.sslImgPath = null;
-        this.sslImage = null;
-        this.sslError = null;
-        this.sslLeftPanelOpen = true;
-        this.sslSelection = new ArrayList<>();
-        this.sslSheet = null;
-        this.sslSelectionMouseStart = null;
-        this.sslIsNew = true;
-        this.sslScroll = new Vector2();
-        this.sslZoomTarget = 3.0;
-        this.sslZoom = 3.0;
-        this.sslNextSelectionIsCollidorRect = false;
-        this.sslVisualizeCollidors = false;
+        this.sslVisible = false;  // Hide the selection tool
+        this.sslImgPath = null;  // Clear the image path for selection tool
+        this.sslImage = null;  // Clear the selection image
+        this.sslError = null;  // Reset any errors
+        this.sslLeftPanelOpen = true;  // Keep the left panel open by default
+        this.sslSelection = new ArrayList<>();  // Clear the selection
+        this.sslSheet = null;  // Clear the selected sprite sheet
+        this.sslSelectionMouseStart = null;  // Clear the starting mouse position for selection
+        this.sslIsNew = true;  // Mark the selection as new
+        this.sslScroll = new Vector2();  // Reset scroll position
+        this.sslZoomTarget = 3.0;  // Default zoom target
+        this.sslZoom = 3.0;  // Default zoom
+        this.sslNextSelectionIsCollidorRect = false;  // Don't mark the next selection as a collider rectangle by default
+        this.sslVisualizeCollidors = false;  // Don't visualize colliders by default
     }
 
+    // Groups the selected tiles into a single "group" tile (used for multi-tile selections)
     private void SSLGroupSelection() {
+        // Ensure there are at least two selected tiles to form a group
         if (this.sslSelection.size() < 2) return;
 
         int topLeftX = Integer.MAX_VALUE, topLeftY = Integer.MAX_VALUE;
@@ -66,6 +75,7 @@ class TileMapEditor {
         Tile topLeftTile = null;
         Tile bottomRightTile = null;
 
+        // Loop through selected tiles to find the boundaries of the selection (top-left and bottom-right)
         for (Tile t : this.sslSelection) {
             if (t.x < topLeftX) {
                 topLeftTile = t;
@@ -73,7 +83,6 @@ class TileMapEditor {
             }
             if (t.y < topLeftY) {
                 topLeftY = t.y;
-
             }
             if (t.x > bottomRightX) {
                 bottomRightTile = t;
@@ -84,14 +93,16 @@ class TileMapEditor {
             }
         }
 
+        // If we found the top-left and bottom-right tiles, group the selection
         if (topLeftTile != null && bottomRightTile != null) {
-            // Clear tiles within the rectangle defined by topLeft and bottomRight
+            // Clear tiles within the defined rectangle
             for (int x = topLeftX; x <= bottomRightX; x++) {
                 for (int y = topLeftY; y <= bottomRightY; y++) {
                     this.sslSheet.tiles.set(y * this.sslSheet.numTilesX + x, new Tile(x, y, this.sslSheet, -1));
                 }
             }
 
+            // Update the top-left tile with the calculated width and height of the group
             topLeftTile.x = topLeftX;
             topLeftTile.y = topLeftY;
 
@@ -100,40 +111,56 @@ class TileMapEditor {
             topLeftTile.h = bottomRightY - topLeftY + 1;
             topLeftTile.textureIndex = tlIndex;
 
+            // Provide feedback to the user about the group tile created
             new Message("Created group tile of size " + topLeftTile.w + "x" + topLeftTile.h + ".", 4.0);
 
+            // Place the grouped tile into the sheet at the calculated position
             this.sslSheet.tiles.set(tlIndex, topLeftTile);
 
+            // Clear the current selection and add the new group tile
             this.sslSelection.clear();
             this.sslSelection.add(topLeftTile);
-            this.sslSelectedKeyTile = topLeftTile;
+            this.sslSelectedKeyTile = topLeftTile;  // Set the selected key tile to the grouped tile
         }
     }
 
+    // Ungroups a previously grouped tile selection into individual tiles
     private void SSLUnGroupSelection() {
+        // Ensure there is only one tile selected (a grouped tile)
         if (this.sslSelection.size() != 1) return;
-        
+
+        // Get the single selected tile (the grouped one)
         Tile selection = this.sslSelection.get(0);
+
+        // Remove the grouped tile from the sprite sheet by setting it to null
         this.sslSheet.tiles.set(selection.GetSheetIndex(), null);
 
+        // Clear the current selection
         this.sslSelection.clear();
 
+        // Loop through the original grouped tile's area and create new individual tiles
         for (int x = selection.x; x < selection.x + selection.w; x++) {
             for (int y = selection.y; y < selection.y + selection.h; y++) {
+                // Calculate the index for the new tile
                 int index = y * this.sslSheet.numTilesX + x;
+                
+                // Create a new tile at the current position (x, y)
                 Tile newTile = new Tile(x, y, this.sslSheet, index);
+
+                // If the tiles are purged and the tile is blank, skip it
                 if (this.sslSheet.tilesPurged && newTile.IsBlank()) {
                     continue;
                 }
 
+                // Place the new tile back into the sheet
                 this.sslSheet.tiles.set(index, newTile);
+
+                // Add the new tile to the selection
                 this.sslSelection.add(newTile);
             }
         }
     }
     
-    Panel sheetEdPanel = new Panel();
-
     private void SpriteSheetLoader(Graphics2D g) {
         if (this.sslLeftPanelOpen) {
             this.layersPanel.disabled = true;

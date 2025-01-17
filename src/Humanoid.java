@@ -3,53 +3,56 @@ import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Map;
 
+// Represents different animation states of a humanoid.
 enum AnimationState {
-    IDLE,
-    WALK,
-    BIRTHING,
-    EXPLODING,
-    DYING
+    IDLE,           // Idle state
+    WALK,           // Walking state
+    BIRTHING,       // Birthing state
+    EXPLODING,      // Exploding state
+    DYING           // Dying state
 };
 
+// Represents different states a game object can be in.
 enum State {
-    PLAYER,
+    PLAYER,         // Player state
 
-    CHASING,
-    ROAMING,
+    CHASING,        // Chasing state
+    ROAMING,        // Roaming state
     
-    RAT_BIRTHING,
+    RAT_BIRTHING,   // Rat birthing state
 
-    BOMBER_EXPLODING,
+    BOMBER_EXPLODING, // Bomber exploding state
 
-    HAR_RUNNING_AWAY,
+    HAR_RUNNING_AWAY, // Har running away state
 
-    DYING,
-    DEAD
+    DYING,          // Dying state
+    DEAD            // Dead state
 }
 
+// Represents the type of humanoid.
 enum HumanoidType {
-    HUMAN,
+    HUMAN,          // Human type
     
-    OGRE,
+    OGRE,           // Ogre type
     
-    RAT,
-    RAT_CHILD,
+    RAT,            // Rat type
+    RAT_CHILD,      // Rat child type
 
-    BOMBER,
+    BOMBER,         // Bomber type
 
-    HAR
+    HAR             // Har type
 };
 
+// Represents a bullet in the game.
 class Bullet extends GameObject {
-    public boolean destroyed = false;
-    private Tile animatedSprite;
-    public double bulletSpeed = 400.0;
-    private Vector2 initialPosition;
-    private String shooter;
+    public boolean destroyed = false; // Flag to check if the bullet is destroyed
+    private Tile animatedSprite;      // Animated sprite for the bullet
+    public double bulletSpeed = 400.0; // Speed of the bullet
+    private Vector2 initialPosition;  // Initial position of the bullet
+    private String shooter;           // The shooter of the bullet
 
+    // Constructor for Bullet.
     public Bullet(Vector2 position, Vector2 velocity, String shooter) {
         Vector2 spriteSize = Game.currentMap.LocalToWorldVectorScalar(new Vector2(1,1));
 
@@ -63,6 +66,7 @@ class Bullet extends GameObject {
         Game.bm.bullets.add(this);
     }
 
+    // Updates the bullet's position and checks for collisions.
     public void Update(double deltaTime) {
         Vector2 newPosition = this.position.add(this.velocity.normalize().scale(bulletSpeed).scale(deltaTime));
         Vector2 positionDifference = this.position.sub(newPosition);
@@ -95,15 +99,18 @@ class Bullet extends GameObject {
         this.position = newPosition;
     }
 
+    // Draws the bullet on the screen.
     public void Draw(Graphics2D g) {
         Vector2 spriteSize = Game.currentMap.LocalToWorldVectorScalar(new Vector2(1,1));
         this.animatedSprite.Draw(g, this.position.x, this.position.y, spriteSize.x, spriteSize.y);
     }
 }
 
+// Manages the bullets in the game.
 class BulletManager {
-    ArrayList<Bullet> bullets = new ArrayList<>();
+    ArrayList<Bullet> bullets = new ArrayList<>(); // List of active bullets
     
+    // Updates all active bullets and removes destroyed ones.
     public void Update(double deltaTime) {
         ArrayList<Integer> deleteIndicies = new ArrayList<>();
         for (int i = 0; i < this.bullets.size(); i++) {
@@ -112,81 +119,87 @@ class BulletManager {
             b.Update(deltaTime);
 
             if (b.destroyed) {
-                deleteIndicies.add(i);
+                deleteIndicies.add(i); // Mark bullets for removal when destroyed
             }
         }
 
+        // Remove destroyed bullets from the list
         for (int i : deleteIndicies) {
             this.bullets.remove(i);
         }
     }
 
+    // Draws all active bullets to the screen.
     public void Draw(Graphics2D g) {
         for (Bullet b : this.bullets) {
             Game.currentMap.RenderResponsibly(b);
         }
     }
 }
-
+// Represents a humanoid character in the game, such as a player or enemy.
 public class Humanoid extends GameObject {
-    protected String name;
-    protected HumanoidType type;
+    protected String name; // Name of the humanoid
+    protected HumanoidType type; // Type of the humanoid (e.g., human, rat)
     
-    public int health;
-    protected int maxHealth;
+    public int health; // Current health of the humanoid
+    protected int maxHealth; // Maximum health of the humanoid
     
-    protected AnimationState animState = AnimationState.IDLE;
-    protected HashMap<AnimationState, Tile> animations = new HashMap<>();
+    protected AnimationState animState = AnimationState.IDLE; // Current animation state
+    protected HashMap<AnimationState, Tile> animations = new HashMap<>(); // Animation states mapped to tiles
     
-    public Vector2 lookAtPoint = new Vector2();
+    public Vector2 lookAtPoint = new Vector2(); // Point the humanoid is looking at
 
-    public double movementSpeed = 100;
-    public State state;
-
-    public double dashCooldown = 0.6;
-    protected double lastTimeDashed = 0;
-
-    public double meleeRange = 70.0;
-
-    private double dyingAnimationCurrentScale = 1.0;
+    public double movementSpeed = 100; // Movement speed of the humanoid
+    public State state; // Current state (e.g., player, chasing)
     
-    private double lastBulletShot = 0;
-    public double maxBulletsPerSecond = 2;
+    public double dashCooldown = 0.6; // Dash cooldown duration
+    protected double lastTimeDashed = 0; // Time when the last dash occurred
 
-    public double damageMultiplier = 1.0;
+    public double meleeRange = 70.0; // Melee attack range
 
-    protected double lastMelee = 0;
-    public double maxMeleesPerSecond = 6;
-
-    public int bulletFullMagazine = 5;
-    public int bulletMagazine = bulletFullMagazine;
-    public Double reloadTill = null;
-    public double reloadTime = 3;
+    private double dyingAnimationCurrentScale = 1.0; // Current scale for dying animation
     
-    protected double spawnTime = 0;
-    protected int randomSeed;
+    private double lastBulletShot = 0; // Time of the last bullet shot
+    public double maxBulletsPerSecond = 2; // Maximum bullets per second
+    
+    public double damageMultiplier = 1.0; // Multiplier for damage dealt by this humanoid
 
-    private boolean sizeFix;
+    protected double lastMelee = 0; // Time of the last melee attack
+    public double maxMeleesPerSecond = 6; // Maximum melee attacks per second
 
+    public int bulletFullMagazine = 5; // Full magazine capacity for bullets
+    public int bulletMagazine = bulletFullMagazine; // Current bullet count in the magazine
+    public Double reloadTill = null; // Time until the next reload is complete
+    public double reloadTime = 3; // Time required to reload
+
+    protected double spawnTime = 0; // Time when the humanoid spawned
+    protected int randomSeed; // Random seed for unique generation
+
+    private boolean sizeFix; // Whether size adjustment is required for this humanoid
+
+    // Constructor for humanoid initialization.
     public Humanoid(String name, int health, int maxHealth) {
         this.health = health;
         this.name = name;
-        this.sizeFix = this.name == "dino";
+        this.sizeFix = this.name == "dino"; // Special case for "dino" humanoid
         this.maxHealth = maxHealth;
         this.collisionLayers.add("humanoid");
         this.type = HumanoidType.HUMAN;
         this.state = State.PLAYER;
-        this.randomSeed = (int)(Math.random() * 1_000_000);
+        this.randomSeed = (int)(Math.random() * 1_000_000); // Random seed for uniqueness
         this.spawnTime = Game.now();
     }
 
+    // Loads animations for the humanoid based on its name.
     public void LoadAnimations() {
         LoadAnimations(this.name);
     }
 
+    // Loads animations for a given humanoid name prefix.
     public void LoadAnimations(String prefix) {
         if (Game.currentMap == null) return;
 
+        // Load animations for each possible state
         for (AnimationState state : AnimationState.values()) {
             String stateString = state.name().toLowerCase();
             String tag = prefix.toLowerCase() + "_" + stateString;
@@ -199,12 +212,13 @@ public class Humanoid extends GameObject {
                 this.animations.put(state, t);
             }
         }
-
     }
 
+    // Draws the humanoid with the appropriate animation based on its state.
     protected void HumanoidDraw(Graphics2D g) {
         Tile currentAnimatedTile;
 
+        // Switch to select the appropriate animation state
         switch (this.animState) {
             case WALK: {
                 currentAnimatedTile = this.animations.get(AnimationState.WALK);
@@ -219,7 +233,7 @@ public class Humanoid extends GameObject {
                 if (dyingAnimationCurrentScale <= 0) {
                     this.state = State.DEAD;
                 } else {
-                    dyingAnimationCurrentScale -= 6.0 * Game.deltaTime;
+                    dyingAnimationCurrentScale -= 6.0 * Game.deltaTime; // Scale down the dying animation
                 }
             }
             default: {
@@ -241,6 +255,7 @@ public class Humanoid extends GameObject {
                 transparency = (Math.sin(Game.now()*24)/2.0 + 0.5)*0.3 + 0.5;
             }
 
+            // Draw the current animation tile with possible flipping and transparency
             currentAnimatedTile.Draw(
                 g,
                 this.position.x,
@@ -255,17 +270,19 @@ public class Humanoid extends GameObject {
         this.size = size;
 
         if (sizeFix) {
-            size = size.mult(new Vector2(1.0, 0.75));
+            size = size.mult(new Vector2(1.0, 0.75)); // Apply size fix if necessary
         }
     }
 
+    // Draws the humanoid.
     public void Draw(Graphics2D g) {
         HumanoidDraw(g);
     }
 
+    // Updates the humanoid's state based on current conditions.
     public void HumanoidUpdate(double deltaTime) {
         if (this.reloadTill != null && Game.now() > this.reloadTill) {
-            this.bulletMagazine = bulletFullMagazine;
+            this.bulletMagazine = bulletFullMagazine; // Reload bullets when the reload time has passed
             this.reloadTill = null;
         }
 
@@ -276,7 +293,8 @@ public class Humanoid extends GameObject {
             this.animState = this.velocity.magnitude() > 1 ? AnimationState.WALK : AnimationState.IDLE;
         }
     }
-    
+
+    // Shoots a bullet in a specified direction.
     public void ShootBullet(Vector2 direction) {
         if (bulletMagazine > 0) {
             if ((Game.now() - this.lastBulletShot) > 1.0/this.maxBulletsPerSecond) {
@@ -285,10 +303,11 @@ public class Humanoid extends GameObject {
                 this.lastBulletShot = Game.now();
             }
         } else if (this.reloadTill == null) {
-            this.reloadTill = Game.now() + this.reloadTime;
+            this.reloadTill = Game.now() + this.reloadTime; // Start reloading if out of bullets
         }
     }
 
+    // Performs a melee attack.
     public void MeleeAttack() {
         if (!((Game.now() - this.lastMelee) > 1.0/this.maxMeleesPerSecond)) {
             return;
@@ -300,6 +319,7 @@ public class Humanoid extends GameObject {
 
         Game.gfxManager.PlayGFXOnce("gfx_slash", this.size.scale(0.5), 2.0, flipped, this);
 
+        // Check for humanoids to hit with the melee attack
         for (Humanoid h : Game.humanoids) {
             if (h == this) continue;
 
@@ -323,7 +343,7 @@ public class Humanoid extends GameObject {
                 if (otherCentre.distance(thisHitPos) < this.meleeRange) {
                     Vector2 direction = h.position.sub(this.position).normalize();
 
-                    // Knockback
+                    // Apply knockback and damage
                     h.velocity = h.velocity.add(direction.scale(1000));
                     
                     h.health -= 40 * this.damageMultiplier;
@@ -331,7 +351,8 @@ public class Humanoid extends GameObject {
             }
         }
     }
-    
+
+    // Updates the humanoid's movement and abilities.
     public void Update(double deltaTime) {
         this.HumanoidUpdate(deltaTime);
 
@@ -348,17 +369,18 @@ public class Humanoid extends GameObject {
             movementVector.x = 1;
         }
 
-        this.velocity = this.velocity.add(movementVector.scale(this.movementSpeed));
+        this.velocity = this.velocity.add(movementVector.scale(this.movementSpeed)); // Update velocity based on movement
 
         this.lookAtPoint = Game.worldMousePos;
 
+        // Dash functionality
         if (Game.IsKeyPressed(KeyEvent.VK_SPACE)) {
             double deltaDashed = Game.now() - lastTimeDashed;
 
             if (deltaDashed > dashCooldown && this.velocity.magnitude() > 0) {
                 Game.gfxManager.PlayGFXOnce("smoke_cloud", this.position.add(this.size.scale(0.5)), 1.0);
 
-                this.velocity = this.velocity.add(this.velocity.normalize().scale(this.movementSpeed * 36.0));
+                this.velocity = this.velocity.add(this.velocity.normalize().scale(this.movementSpeed * 36.0)); // Dash speed boost
                 this.lastTimeDashed = Game.now();
             }
         }
@@ -368,14 +390,15 @@ public class Humanoid extends GameObject {
         }
 
         if (Game.IsMouseDown(MouseEvent.BUTTON1)) {
-            ShootBullet(Game.worldMousePos.sub(this.position));
+            ShootBullet(Game.worldMousePos.sub(this.position)); // Shoot bullet towards mouse position
         }
 
         if (Game.IsKeyPressed(KeyEvent.VK_R)) {
-            Game.gfxManager.PlayGFXOnce("real_rah", this.position.add(this.size.scale(0.5)).sub(new Vector2(0, this.size.y)), 1.5);
+            Game.gfxManager.PlayGFXOnce("real_rah", this.position.add(this.size.scale(0.5)).sub(new Vector2(0, this.size.y)), 1.5); // Special effect
         }
     }
 
+    // Updates the maximum health of the humanoid.
     public void SetMaxHealth(int newMaxHealth) {
         double healthAsPercentage = this.health / (double)this.maxHealth;
 
@@ -383,6 +406,7 @@ public class Humanoid extends GameObject {
         this.health = (int)(healthAsPercentage * maxHealth);
     }
 
+    // Checks if the humanoid can dash based on cooldown.
     public boolean CanDash() {
         double deltaDashed = Game.now() - lastTimeDashed;
         if (deltaDashed > dashCooldown) {

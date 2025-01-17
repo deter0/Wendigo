@@ -8,6 +8,10 @@
 
 import java.awt.*;
 
+/*
+ * This class is pretty self explanatory.
+ */
+
 public class GG {
     public static Graphics2D g;
     public static Color COLOR_OPAQUE = new Color(0, 0, 0, 0);

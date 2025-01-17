@@ -1,6 +1,7 @@
 import java.awt.*;
 import java.util.ArrayList;
 
+// Represents a basic game object with position, velocity, size, and collision properties.
 public class GameObject {
     public Vector2 position = new Vector2();
     public Vector2 velocity = new Vector2();
@@ -13,9 +14,13 @@ public class GameObject {
 
     public ArrayList<String> collisionLayers = new ArrayList<>();
 
+    // Method to draw the object
     public void Draw(Graphics2D g) { }
+
+    // Method to update the object
     public void Update(double deltaTime) { }
 
+    // Draw the object outline and velocity direction
     public void DrawOutline(Graphics2D g) {
         g.setColor(Color.RED);
         GG.drawRect(this.position, this.size);
@@ -29,6 +34,7 @@ public class GameObject {
         }
     }
 
+    // Get the bounding rectangle of the object
     public Rectangle GetRect() {
         return new Rectangle((int)this.position.x,
                              (int)this.position.y,

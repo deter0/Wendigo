@@ -1,24 +1,20 @@
-import java.awt.AlphaComposite;
 import java.awt.Color;
-import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Graphics2D;
-import java.awt.Rectangle;
 import java.awt.event.KeyEvent;
 import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
 import java.io.File;
-import java.nio.Buffer;
 
 import javax.imageio.ImageIO;
 
+// HUD for when in game
 public class HUD {
-
     private BufferedImage dash;
-    private BufferedImage bullet;
+    // private BufferedImage bullet;
     private BufferedImage health;
     private BufferedImage gameOver;
-    private double elapsedTime = 0;
+    // private double elapsedTime = 0;
     //fixed position for the UI
     int fixedX = 100;
     int fixedY = 100;
@@ -29,7 +25,7 @@ public class HUD {
         try {
             // Load UI elements
             dash = ImageIO.read(new File("res/dashUI.png"));
-            bullet = ImageIO.read(new File("res/Bullet.png"));
+            // bullet = ImageIO.read(new File("res/Bullet.png"));
             health = ImageIO.read(new File("res/health.png"));
             gameOver = ImageIO.read(new File("res/deathSkull.png"));
         } catch (Exception e) {
@@ -41,7 +37,7 @@ public class HUD {
 
     public void Update(double deltaTime) {
         // Update the UI
-        elapsedTime += deltaTime;
+        // elapsedTime += deltaTime;
 
     }
 

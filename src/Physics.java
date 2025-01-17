@@ -1,21 +1,27 @@
-import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.Rectangle;
 import java.awt.geom.Line2D;
 import java.util.ArrayList;
 
 public class Physics {
+    // The current tile map that contains the game world
     public TileMap currentMap = null;
+
+    // A list of game objects that are affected by physics
     public ArrayList<GameObject> physicsObjects = new ArrayList<>();
 
+    // A list of collision rules for various layers
     private ArrayList<String> collisionRules = new ArrayList<>(); 
 
+    // Sets whether two layers are collidable or not
+    // If collidable is true, the collision rule between the layers is removed (i.e., they can collide)
+    // If collidable is false, the collision rule is added to prevent collisions between these layers
     public void SetCollidable(String layerOne, String layerTwo, boolean collidable) {
         String rule = layerOne + "|" + layerTwo;
         if (collidable == true) {
-            this.collisionRules.remove(rule);
+            this.collisionRules.remove(rule); // Remove collision rule to allow collision
         } else if (!this.collisionRules.contains(rule)) {
-            this.collisionRules.add(rule);
+            this.collisionRules.add(rule); // Add collision rule to prevent collision
         }
     }
 
@@ -79,7 +85,7 @@ public class Physics {
     public void ApplyFriction(GameObject o, double dt) {
         // Assuming the friction coefficient is stored in the object
         double frictionCoefficient = o.frictionCoefficient; // e.g., 0.1 for a rough surface
-        double mass = o.mass;
+        // double mass = o.mass;
         
         // If the object is moving, apply kinetic friction
         if (o.velocity.magnitude() > 0.01) {
@@ -102,47 +108,60 @@ public class Physics {
 
     private ArrayList<Rectangle> mapStaticCollidors = new ArrayList<>();
 
+    // Updates the physics simulation for the game world
+    // Handles the movement, friction, and collision detection of game objects
     public void Update(double dt) {
+        // Reset the static colliders list
         mapStaticCollidors = new ArrayList<>();
-
+    
+        // If there is a current map, iterate through its layers and tiles
         if (this.currentMap != null) {
             for (TileMapLayer l : this.currentMap.layers) {
                 for (Tile t : l.tiles) {
+                    // If the tile is collidable, create a collision rectangle
                     if (t.collidable == true) {
                         Vector2 tilePosition = currentMap.LocalToWorldVectorPositional(new Vector2(t.x, t.y));
                         Vector2 tileSize = currentMap.LocalToWorldVectorScalar(new Vector2(t.w, t.h));
                         
                         Rectangle collisionRect = new Rectangle();
                         
+                        // Calculate the collision rectangle position and size based on tile data
                         collisionRect.x = (int)(tilePosition.x + tileSize.x*t.collidorPos.x);
                         collisionRect.y = (int)(tilePosition.y + tileSize.y*t.collidorPos.y);
                         collisionRect.width = (int)(tileSize.x*t.collidorSize.x);
                         collisionRect.height = (int)(tileSize.y*t.collidorSize.y);
-
+    
+                        // Add the collision rectangle to the list of static colliders
                         mapStaticCollidors.add(collisionRect);
                     }
                 }
             }
         }
-
+    
+        // Iterate through the physics objects and handle their movement and collisions
         for (GameObject o : this.physicsObjects) {
+            // Get the current rectangle of the object
             Rectangle rect = o.GetRect();
+    
+            // Update the object's position based on its velocity
             o.position = o.position.add(o.velocity.scale(dt));
-
+    
             // Apply friction to the object
             ApplyFriction(o, dt);
-
-            // Check for collisions with other objects
+    
+            // Check for collisions with other game objects
             for (GameObject otherO : this.physicsObjects) {
                 if (otherO == o) continue;
-
+    
                 boolean skip = false;
+    
+                // Check if the objects' collision layers prevent a collision
                 if (o.collisionLayers != null && otherO.collisionLayers != null) {
                     for (String clayer : o.collisionLayers) {
                         for (String colayer : otherO.collisionLayers) {
                             String ruleString = clayer + "|" + colayer;
                             if (this.collisionRules.contains(ruleString)) {
-                                skip = true;
+                                skip = true; // Skip the collision check if the rule exists
                                 break;
                             }
                         }
@@ -150,12 +169,13 @@ public class Physics {
                     }
                 }
                 if (skip) continue;
-
+    
+                // Get the other object's rectangle and check for a collision
                 Rectangle otherRect = otherO.GetRect();
                 CheckCollision(rect, otherRect, o, otherO);
             }
-
-            // Check for collisions with static objects
+    
+            // Check for collisions with static objects in the environment
             for (Rectangle staticCollidor : mapStaticCollidors) {
                 CheckCollision(rect, staticCollidor, o, null);
             }
@@ -211,22 +231,29 @@ public class Physics {
     
         return null; // No valid intersection
     }
-    
-    class RaycastResult  {
-        Vector2 position = null;
-        Vector2 normal = new Vector2();
-        double distance = Double.MAX_VALUE;
-        Object hit = null;
+
+    // Represents the result of a raycast, including the hit position, normal, distance, and the object hit (if any)
+    class RaycastResult {
+        Vector2 position = null;  // The position where the ray hit
+        Vector2 normal = new Vector2();  // The normal of the surface at the hit point
+        double distance = Double.MAX_VALUE;  // The distance to the hit point, initialized to maximum value
+        Object hit = null;  // The object hit by the ray (null if no object is hit)
     }
 
+    // Performs a raycast from a given position in a specific direction, checking for collisions with static objects and physics objects.
+    // If a collision occurs, the method returns the closest hit point and the corresponding object hit.
     public RaycastResult RayCast(Vector2 position, Vector2 direction, String[] ignoreCollisionLayers) {
         RaycastResult closestResult = new RaycastResult();
 
+        // Check for collisions with static objects (e.g., tiles)
         for (Rectangle or : mapStaticCollidors) {
+            // Get all intersections between the ray and the static colliders
             ArrayList<Vector2> intersections = getLineRectangleIntersection(position, position.add(direction), or);
 
+            // Iterate through each intersection point
             for (Vector2 intersection : intersections) {
-                double distance = intersection.distance(position);
+                double distance = intersection.distance(position);  // Calculate the distance to the intersection
+                // If the intersection is closer than the previous closest, update the closest result
                 if (distance < closestResult.distance) {
                     closestResult.hit = null;
                     closestResult.position = intersection;
@@ -236,13 +263,15 @@ public class Physics {
             }
         }
 
+        // Check for collisions with physics objects (e.g., game objects)
         for (GameObject o : this.physicsObjects) {
             boolean skip = false;
 
+            // Check if the object should be ignored based on collision layers
             if (o.collisionLayers != null && ignoreCollisionLayers != null) {
                 for (String ignore : ignoreCollisionLayers) {
                     if (o.collisionLayers.contains(ignore)) {
-                        skip = true;
+                        skip = true;  // Skip this object if it matches one of the ignored layers
                         break;
                     }
                 }
@@ -250,50 +279,43 @@ public class Physics {
 
             if (skip) continue;
 
-            Rectangle or = o.GetRect();
+            Rectangle or = o.GetRect();  // Get the rectangle representing the object
 
+            // Get all intersections between the ray and the object's bounding rectangle
             ArrayList<Vector2> intersections = getLineRectangleIntersection(position, position.add(direction), or);
 
+            // Iterate through each intersection point
             for (Vector2 intersection : intersections) {
-                double distance = intersection.distance(position);
+                double distance = intersection.distance(position);  // Calculate the distance to the intersection
+                // If the intersection is closer than the previous closest, update the closest result
                 if (distance < closestResult.distance) {
                     closestResult.hit = null;
                     closestResult.position = intersection;
                     closestResult.distance = distance;
-                    closestResult.hit = o;
+                    closestResult.hit = o;  // Store the object that was hit
                 }
             }
         }
 
+        // Return the closest result if a hit occurred
         if (closestResult.position != null)
             return closestResult;
 
+        // If no hit occurred, return null
         return null;
     }
 
+    // Overloaded method of RayCast that ignores collision layers (no filtering)
     public RaycastResult RayCast(Vector2 position, Vector2 direction) {
         return RayCast(position, direction, null);
     }
 
-
+    // Clears the list of physics objects before the update cycle begins.
+    // This is typically called at the start of each update to prepare for the next set of physics calculations.
     public void PreUpdate() {
-        this.physicsObjects.clear();
+        this.physicsObjects.clear();  // Clears the list of physics objects
     }
 
     public void Draw(Graphics2D g) {
-        // for (GameObject o : this.physicsObjects) {
-        //     o.DrawOutline(g);
-        // }
-
-        // for (Rectangle r : mapStaticCollidors) {
-        //     g.setColor(Color.RED);
-        //     GG.drawRect(r);
-        // }
-
-        RaycastResult r = RayCast(Game.player.position, Game.worldMousePos.sub(Game.player.position), new String[]{"player"});
-        if (r != null) {
-            g.setColor(Color.RED);
-            GG.drawOval(r.position, new Vector2(5));
-        }
     }
 }
