@@ -1,7 +1,10 @@
 import java.awt.AlphaComposite;
 import java.awt.Color;
 import java.awt.Font;
+import java.awt.FontMetrics;
 import java.awt.Graphics2D;
+import java.awt.Rectangle;
+import java.awt.event.KeyEvent;
 import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
 import java.io.File;
@@ -20,6 +23,7 @@ public class HUD {
     int fixedX = 100;
     int fixedY = 100;
     
+    private Tile bulletImage;
 
     public HUD() {
         try {
@@ -31,6 +35,8 @@ public class HUD {
         } catch (Exception e) {
             e.printStackTrace();
         }
+
+        this.bulletImage = Game.currentMap.GetSheetTileByTag("bullet");
     }
 
     public void Update(double deltaTime) {
@@ -49,7 +55,6 @@ public class HUD {
         healthTransform.translate(180 + 180 + 50, 180);
 
 
-
         //Set font for future text
         g.setColor(Color.WHITE);
         g.setFont(Game.font32);
@@ -62,11 +67,12 @@ public class HUD {
             g.drawString("Dash: Cooling Down " + (int)(((Game.now() - Game.player.lastTimeDashed) / Game.player.dashCooldown)*100) + "%", fixedX + 80, fixedY + 120);
         }
         //Draw bullet image and corrosponding things
-        g.drawImage(bullet, fixedX, fixedY + 15, null);
-        if (Game.gun.magazine > 0){
-            g.drawString("Ammo x " + String.valueOf(Game.gun.magazine), fixedX + 75, fixedY + 45);}
-        else{
-            g.drawString(String.valueOf("Ammo Reloading " + ((double)(System.currentTimeMillis() - Game.gun.reloadStart) / 1000)), fixedX + 75, fixedY + 45);
+        // g.drawImage(bullet, fixedX, fixedY + 15, null);
+        this.bulletImage.Draw(g, fixedX, fixedY, 75, 75);
+        if (Game.player.bulletMagazine > 0) {
+            g.drawString("Ammo x " + String.valueOf(Game.player.bulletMagazine), fixedX + 75, fixedY + 45);
+        } else {
+            g.drawString("Reloading ...", fixedX + 75, fixedY + 45);
         }
 
         if (Game.player.health > 0) {
@@ -79,13 +85,30 @@ public class HUD {
 
         //player death screen once health reaches 0
         if (Game.player.health <= 0) {
+            g.setFont(Game.font64);
+            FontMetrics fm = g.getFontMetrics();
+            String scoreString = "Score: " + Game.score;
+            String spaceMessage = "Press Space";
+            int scoreWidth = fm.stringWidth(scoreString);
+            int spaceWidth = fm.stringWidth(spaceMessage);
+
+
+            g.setColor(new Color(0, 0, 0, 160));
+            g.fillRect(0, 0, Game.WINDOW_WIDTH, Game.WINDOW_HEIGHT);
+
             // Game.player.alive = false;
             g.setColor(Color.RED);
-            g.setFont(Game.font64);
             g.drawImage(gameOver, Game.WINDOW_WIDTH / 2 - 300, Game.WINDOW_HEIGHT / 2 - 300, null);
             g.drawString("You died...", Game.WINDOW_WIDTH / 2 - 150, Game.WINDOW_HEIGHT / 2 + 150);
-            //use this to display score when score functionality is added
-            // g.drawString(Game.score + " points", Game.WINDOW_WIDTH / 2 - 150, Game.WINDOW_HEIGHT / 2 + 200);
+            
+            // use this to display score when score functionality is added
+            g.drawString(scoreString, Game.WINDOW_WIDTH / 2 - scoreWidth/2, Game.WINDOW_HEIGHT / 2 + 200);
+
+            g.drawString(spaceMessage, Game.WINDOW_WIDTH / 2 - spaceWidth/2, Game.WINDOW_HEIGHT / 2 + 350);
+
+            if (Game.IsKeyPressed(KeyEvent.VK_SPACE)) {
+                Game.UnLoadGame();
+            }
         }
     }
 }

@@ -834,7 +834,7 @@ class TileMapEditor {
                                                     t.Set(this.sslSelection.get(0));
                                                 }
                                             } else {
-                                                if (this.sslSelection.size() > 2) {
+                                                if (this.sslSelection.size() > 1) {
                                                     int randomTileIndex = (int)(Math.random() * this.sslSelection.size());
                                                     Tile randomTile = this.sslSelection.get(randomTileIndex);
                                                     t.Set(randomTile);

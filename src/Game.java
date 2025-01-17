@@ -11,6 +11,11 @@ Implements Runnable interface to use "threading" - let the game do two things at
 */
 
 import javax.imageio.ImageIO;
+import javax.sound.sampled.AudioInputStream;
+import javax.sound.sampled.AudioSystem;
+import javax.sound.sampled.Clip;
+import javax.sound.sampled.LineUnavailableException;
+import javax.sound.sampled.UnsupportedAudioFileException;
 import javax.swing.*;
 
 import java.awt.event.*;
@@ -22,6 +27,7 @@ import java.awt.*;
 import java.io.*;
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
+import java.util.Iterator;
 
 public class Game extends JPanel implements Runnable, KeyListener {
     private Thread gameThread; // Thread game is ran on
@@ -68,6 +74,8 @@ public class Game extends JPanel implements Runnable, KeyListener {
     public static int WIDTH = WINDOW_WIDTH;
     public static int HEIGHT = WINDOW_HEIGHT;
 
+    public static int score = 0;
+
     // This one is in the world (relative to the camera)
     static Vector2 worldMousePos = new Vector2(); // Mouse position so classes can access Game.mousePos
     static Vector2 mousePos = new Vector2();  // Relative to the top left
@@ -101,11 +109,16 @@ public class Game extends JPanel implements Runnable, KeyListener {
 
     public static AffineTransform worldTransform = new AffineTransform();
 
-    //create an array list of enemies
-    public static ArrayList<Enemy> enemies = new ArrayList<Enemy>();
+    //create an array list of humans
+    public static ArrayList<Humanoid> humanoids = new ArrayList<>();
+
+    public static EnemyManager em;
+    public static BulletManager bm;
+
+    public static NoiseGenerator ng = new NoiseGenerator();
     
     //Create UI
-    public HUD hud = new HUD();
+    public static HUD hud;
 
     // Load test map
     TileMap testMap;
@@ -113,19 +126,13 @@ public class Game extends JPanel implements Runnable, KeyListener {
     public boolean editorEnabled = false;
     
     // Initialize the player
-    public static Player player = new Player("dino", 1000, 100);
-
-    //initialize the weapon
-    public static Weapon gun = new Weapon(1000, 10, 10, player);
+    public static Humanoid player;
     
     public static GFXManager gfxManager;
 
-    public Game(JFrame parentFrame) {
-        // // Add enemies
-        // for (int i = 0; i < 100; i += 10){
-        //     enemies.add(new Enemy(i*10, 0));
-        // }
+    public static MainMenu menu;
 
+    public Game(JFrame parentFrame) {
         this.parentJFrame = parentFrame;
         
         this.setFocusable(true); // make everything in this class appear on the screen
@@ -133,14 +140,14 @@ public class Game extends JPanel implements Runnable, KeyListener {
 
         Game game = this;
         addMouseListener(new MouseAdapter() {
-			public void mousePressed(MouseEvent e) {
+            public void mousePressed(MouseEvent e) {
                 int mouseButtonIndex = e.getButton();
                 if (mouseButtonIndex >= 0 && mouseButtonIndex < Game.mouseButtonsDown.length) { // If we keep track of it
                     if (e.getID() == MouseEvent.MOUSE_PRESSED) { // If it's pressed store it in the array, otherwise reset it
                         Game.mouseButtonsDown[mouseButtonIndex] = true;
                     }
                 }
-			}
+            }
             public void mouseReleased(MouseEvent e) {
                 int mouseButtonIndex = e.getButton();
                 if (mouseButtonIndex >= 0 && mouseButtonIndex < Game.mouseButtonsDown.length) { // If we keep track of it
@@ -149,7 +156,7 @@ public class Game extends JPanel implements Runnable, KeyListener {
                     }
                 }
             }
-		});
+        });
         addMouseWheelListener(new MouseWheelListener() {
            @Override
            public void mouseWheelMoved(MouseWheelEvent e) {
@@ -190,38 +197,111 @@ public class Game extends JPanel implements Runnable, KeyListener {
 
 
         SpriteSheet def = Game.currentMap.LoadSpriteSheet("res/Tile_set.png", 16);
-        this.editor = new TileMapEditor(currentMap);
-
+        
         Game.currentMap.LoadFromFile("./res/map.wmap");
 
-        gfxManager = new GFXManager();
-        player.LoadAnimations();
+        this.editor = new TileMapEditor(currentMap);
+
+        menu = new MainMenu();
 
         // Maximize window
         this.parentJFrame.setExtendedState( this.parentJFrame.getExtendedState()|JFrame.MAXIMIZED_BOTH );
     }
-    
-    GameObject testObject;
 
-    public void Update(double deltaTime) {
-        if (testObject == null) {
-            testObject = new GameObject();
-            testObject.position = new Vector2(200, -100);
-            testObject.size = new Vector2(100, 100);
-            testObject.velocity = new Vector2(10, 0);
+    public static void LoadGame() {
+        physics = new Physics();
+
+        Game.currentMap.LoadFromFile("./res/map.wmap");
+        
+        player = new Humanoid("dino", 1000, 1000);
+        gfxManager = new GFXManager();
+        
+        em = new EnemyManager();
+        bm = new BulletManager();
+        hud = new HUD();
+        
+        player.LoadAnimations();
+        player.collisionLayers.add("player");
+        gameStart = Game.now();
+
+
+        ArrayList<Tile> spawnTiles = Game.currentMap.GetMapTilesByTag("player_spawn", null);
+        if (spawnTiles.size() > 0) {
+            Tile spawnTile = spawnTiles.get(0);
+            player.position = Game.currentMap.LocalToWorldVectorPositional(new Vector2(spawnTile.x, spawnTile.y));
         }
 
-        Game.physics.currentMap = currentMap;
+        humanoids.add(player);
+
+        Game.physics.SetCollidable("humanoid", "humanoid", false);
+    }
+
+    public static void UnLoadGame() {
+        if (Game.score > Game.currentMap.highScore) {
+            Game.currentMap.highScore = Game.score;
+        }
+
+        Game.currentMap.Save("./res/map.wmap");
+
+        Game.currentMap = new TileMap(100, 100);
+
+        Game.currentMap.LoadFromFile("./res/map.wmap");
         
-        Game.physics.physicsObjects.add(testObject);
-        Game.physics.physicsObjects.add(player);
+        player = null;
+        gfxManager = null;
+        
+        em = null;
+        bm = null;
+        hud = null;
+        
+        physics = null;
+
+        humanoids.clear();
+
+        Game.menu = new MainMenu();
+    }
+
+    // static void PlaySound(String soundFile) {
+    //     File f = new File(soundFile);
+    //     AudioInputStream audioIn;
+    //     try {
+    //         audioIn = AudioSystem.getAudioInputStream(f.toURI().toURL());
+    //         Clip clip = AudioSystem.getClip();
+    //         clip.open(audioIn);
+    //         clip.start();
+    //     } catch (LineUnavailableException | UnsupportedAudioFileException | IOException e) {
+    //         e.printStackTrace();
+    //     }
+    // }
+
+    public void Update(double deltaTime) {
+        if (Game.player != null && Game.player.health > 0) {
+            score = (int)(Game.now() - Game.gameStart)*20;
+        }
+
+        if (Game.menu != null) {
+            Game.menu.Update(deltaTime);
+
+            if (Game.menu.state == MenuState.Play) {
+                Game.menu = null;
+                LoadGame();
+            } else if (Game.menu.state == MenuState.Quit) {
+                gameRunning = false;
+            }
+
+            return;
+        }
+
+        Game.physics.PreUpdate();
 
         /* Essentially the camera. */
         worldTransform = new AffineTransform();
-        worldTransform.translate(Game.WINDOW_WIDTH/2.0 - player.size.x / 2.0,
-                                 Game.WINDOW_HEIGHT/2.0 - player.size.y / 2.0);
-        
-        worldTransform.translate(-player.position.x, -player.position.y);
+        if (Game.player != null) {
+            worldTransform.translate(Game.WINDOW_WIDTH/2.0 - player.size.x / 2.0,
+                                     Game.WINDOW_HEIGHT/2.0 - player.size.y / 2.0);
+            
+            worldTransform.translate(-player.position.x, -player.position.y);
+        }
         
         Point mousePoint = new Point((int)mousePos.x, (int)mousePos.y);
         Point worldMousePoint = new Point();
@@ -231,15 +311,37 @@ public class Game extends JPanel implements Runnable, KeyListener {
             
         }
         Game.worldMousePos = new Vector2(worldMousePoint.x, worldMousePoint.y);
+
+        Game.physics.currentMap = currentMap;
+
         //Update player
-        player.Update(deltaTime);
-        
+        // player.Update(deltaTime);
+        // Game.physics.physicsObjects.add(player);
         //update each enemy
-        for (Enemy e : enemies){
-            e.Update(deltaTime);
+    
+        ArrayList<Integer> humansToRemove = new ArrayList<>();
+        for (int i = 0; i < Game.humanoids.size(); i++) {
+            Humanoid e = Game.humanoids.get(i);
+
+            if (e.state == State.DEAD) {
+                humansToRemove.add(i);
+            } else {
+                if (e.type == HumanoidType.HUMAN || !this.editorEnabled) {
+                    e.Update(deltaTime);
+                }
+                Game.physics.physicsObjects.add(e);
+            }
         }
-        
-        gun.Update(deltaTime);
+        for (int i : humansToRemove) {
+            Game.humanoids.remove(i);
+        }
+
+        if (Game.em != null) {
+            em.Update(deltaTime);
+        }
+        if (Game.bm != null) {
+            bm.Update(deltaTime);
+        }
         
         if (this.editorEnabled) {
             editor.Update(deltaTime);
@@ -253,7 +355,6 @@ public class Game extends JPanel implements Runnable, KeyListener {
         }
 
         Game.physics.Update(deltaTime);
-        Game.physics.PostUpdate();
         // System.out.println("Game tick! At " + 1.0/deltaTime + "TPS");
     }
 
@@ -281,17 +382,15 @@ public class Game extends JPanel implements Runnable, KeyListener {
         g.setTransform(Game.worldTransform);
         currentMap.Draw(g);
 
-        //draw player obj
-        // player.Draw(g);
         currentMap.ResetResponsiblities();
 
-        currentMap.RenderResponsibly(player);
+        if (Game.em != null)
+            em.Draw(g);
+        if (Game.bm != null)
+            bm.Draw(g);
 
-        gfxManager.Draw(g);
-        // testMap.RenderResponsibly(badguy);
-        //draw the weapon projectiles
-        gun.Draw(g);
-
+        if (Game.gfxManager != null)
+            gfxManager.Draw(g);
         
         if (this.editorEnabled) {
             try {
@@ -306,18 +405,25 @@ public class Game extends JPanel implements Runnable, KeyListener {
         }
 
         //draw the ennemies
-        for (Enemy e : enemies){
-            e.Draw(g);
+        for (Humanoid h : humanoids){
+            currentMap.RenderResponsibly(h);
         }
         
         // Game.physics.Draw(g);
-        
+
         g.setTransform(defaultTransform);
 
         //Draw the UI
-        hud.Draw(g);
+        if (this.hud != null)
+            hud.Draw(g);
         
         this.DrawFPS(g);
+
+        if (Game.menu != null) {
+            Game.menu.Draw(g);
+        } else {
+            
+        }
 
         Panel.Draw(g);
     }
@@ -359,10 +465,6 @@ public class Game extends JPanel implements Runnable, KeyListener {
         
         // Update the game
         Update(deltaTime);
-        
-        for (Enemy e : enemies){
-            e.Update(deltaTime);
-        }
 
         // super.paint(gAbs);
         Graphics2D g = (Graphics2D)gAbs;
@@ -382,7 +484,7 @@ public class Game extends JPanel implements Runnable, KeyListener {
         g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING,
                             RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
         
-        g.setColor(Color.BLACK);
+        g.setColor(new Color(28, 115, 255));
         g.fillRect(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
         
         Game.currentCursor = Cursor.getPredefinedCursor(Cursor.DEFAULT_CURSOR);
@@ -441,6 +543,8 @@ public class Game extends JPanel implements Runnable, KeyListener {
                 }
             }
         }
+
+        this.Close();
     }
 
 

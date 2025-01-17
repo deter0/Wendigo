@@ -8,7 +8,7 @@ class GFXManager {
     private ArrayList<GFX> activeGFXS = new ArrayList<>();
 
     public GFXManager() {
-        String[] essentialGfxsNames = {"smoke_cloud", "gfx_slash", "gfx_eye_of_rah", "real_rah", "gfx_star_spin"}; 
+        String[] essentialGfxsNames = {"smoke_cloud", "gfx_slash", "gfx_eye_of_rah", "real_rah", "gfx_explode", "gfx_star_spin", "gfx_crack"}; 
         if (this.loadedGFXS == null) {
             this.loadedGFXS = new HashMap<>();
 
@@ -31,7 +31,6 @@ class GFXManager {
             
             GFX gfx = iterator.next();
             if (gfx.tile.animPlayedCount >= 1) {
-                System.out.println("Removed");
                 iterator.remove();
                 continue;
             }
@@ -47,7 +46,7 @@ class GFXManager {
         }
     }
 
-    private Tile GetGFX(String gfx) {
+    public Tile GetGFX(String gfx) {
         if (this.loadedGFXS == null) {
             return null;
         }
@@ -106,6 +105,18 @@ public class GFX extends GameObject {
     public boolean flipped = false;
     public GameObject attachedTo = null;
     public Vector2 offsetPosition = new Vector2();
+
+    public GFX(Tile gfxTile, Vector2 position, boolean reset) {
+        super();
+
+        this.tile = gfxTile;
+        this.offsetPosition = position;
+        this.size = Game.gfxManager.GetGFXSize(gfxTile);
+        
+        if (reset) {
+            gfxTile.ResetAnimation();
+        }
+    }
 
     public GFX(Tile gfxTile, Vector2 position) {
         super();

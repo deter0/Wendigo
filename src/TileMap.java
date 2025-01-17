@@ -266,7 +266,7 @@ class SpriteSheet {
         this.numTilesX = imageWidth / tileSize;
         this.numTilesY = imageHeight / tileSize;
 
-        new Message("Warning reset blueprint tiles.", true);
+        System.out.println("[LOG]: Reset blueprint tiles.");
         this.tiles = new ArrayList<>();
         for (int y = 0; y < this.numTilesY; y++) {
             for (int x = 0; x < this.numTilesX; x++) {
@@ -297,6 +297,8 @@ class Tile {
     public ArrayList<String> tags = new ArrayList<>();
 
     public boolean animated = false;
+    public boolean animationControl = false;
+
     public int animNumFramesX = 1;
     public int animNumFramesY = 1;
     public int animFPS = 15;
@@ -394,6 +396,10 @@ class Tile {
         this.animFPS = newTile.animFPS;
         this.animNumFramesX = newTile.animNumFramesX;
         this.animNumFramesY = newTile.animNumFramesY;
+        this.animCurrentFrame = newTile.animCurrentFrame;
+        this.animPlayedCount = newTile.animPlayedCount;
+        this.animStart = newTile.animStart;
+        this.animationControl = newTile.animationControl;
         this.tags = new ArrayList<>(newTile.tags);
     }
 
@@ -439,16 +445,17 @@ class Tile {
         Tile t = new Tile(this.x, this.y, this.textureSheet, this.textureIndex);
 
         // t.Clear();
-        t.collidable = this.collidable;
-        t.collidorPos = this.collidorPos.scale(1.0);
-        t.collidorSize = this.collidorSize.scale(1.0);
-        t.animated = this.animated;
-        t.animFPS = this.animFPS;
-        t.animNumFramesX = this.animNumFramesX;
-        t.animNumFramesY = this.animNumFramesY;
-        t.w = this.w;
-        t.h = this.h;
-        t.tags = new ArrayList<String>(this.tags);
+        t.Set(this);
+        // t.collidable = this.collidable;
+        // t.collidorPos = this.collidorPos.scale(1.0);
+        // t.collidorSize = this.collidorSize.scale(1.0);
+        // t.animated = this.animated;
+        // t.animFPS = this.animFPS;
+        // t.animNumFramesX = this.animNumFramesX;
+        // t.animNumFramesY = this.animNumFramesY;
+        // t.w = this.w;
+        // t.h = this.h;
+        // t.tags = new ArrayList<String>(this.tags);
 
         return t;
     }
@@ -541,14 +548,13 @@ class Tile {
         int frameOffsetY = 0;
 
         if (this.animated) {
-            this.animCurrentFrame = (int)(((Game.now()-animStart) * this.animFPS) % (this.animNumFramesX * this.animNumFramesY));
-
-            // this.animPlayedCount = (int)(((Game.now()-animStart) * this.animFPS) / (this.animNumFramesX * this.animNumFramesY));
-            this.animPlayedCount = ((int)((Game.now() - animStart) * this.animFPS) / (this.animNumFramesX * this.animNumFramesY)) % (this.animNumFramesX * this.animNumFramesY);
-
-            frameOffsetX = (this.animCurrentFrame % this.animNumFramesX);
-            frameOffsetY = 0;//(this.currentFrame / this.animNumFramesY);
+            if (!this.animationControl) {
+                this.animCurrentFrame = (int)(((Game.now()-animStart) * this.animFPS) % (this.animNumFramesX * this.animNumFramesY));
+                this.animPlayedCount = ((int)((Game.now() - animStart) * this.animFPS) / (this.animNumFramesX * this.animNumFramesY)) % (this.animNumFramesX * this.animNumFramesY);
+            }
         }
+        frameOffsetX = (this.animCurrentFrame % this.animNumFramesX);
+        frameOffsetY = 0;//(this.currentFrame / this.animNumFramesY);
 
         sx = (sx+(frameOffsetX*this.w))*tileSize;
         sy = (sy+(frameOffsetY*this.h))*tileSize;
@@ -737,6 +743,8 @@ class TileMap {
 
     protected ArrayList<GameObject> renderingResponsiblity = new ArrayList<>();
 
+    public int highScore = 0;
+
     public TileMap(int width, int height) {
         this.width = width;
         this.height = height;
@@ -891,24 +899,25 @@ class TileMap {
         }
     }
 
-    public Tile GetMapTileByTag(String tag, TileMapLayer layerMask) {
+    public ArrayList<Tile> GetMapTilesByTag(String tag, TileMapLayer layerMask) {
+        ArrayList<Tile> tiles = new ArrayList<>();
         if (layerMask == null) {
             for (TileMapLayer l : this.layers) {
                 for (Tile t : l.tiles) {
                     if (t.tags.contains(tag)) {
-                        return t;
+                        tiles.add(t);
                     }
                 }
             }
         } else {
             for (Tile t : layerMask.tiles) {
                 if (t.tags.contains(tag)) {
-                    return t;
+                    tiles.add(t);
                 }
             }
         }
 
-        return null;
+        return tiles;
     }
 
     public Tile GetSheetTileByTag(String tag) {
@@ -1056,6 +1065,8 @@ class TileMap {
             for (TileMapLayer l : this.layers) {
                 l.SaveToFile(fw, this);
             }
+
+            fw.write("high_score=" + this.highScore + "\n");
 
             fw.write("END\n");
 
@@ -1228,6 +1239,12 @@ class TileMap {
                 return;
             } else {
                 this.layers = layers;
+            }
+
+            Integer highScore = readInt(br, "high_score");
+            if (highScore != null) {
+                System.out.println("Read highscore: " + highScore);
+                this.highScore = highScore;
             }
 
             GoToEnd(br);

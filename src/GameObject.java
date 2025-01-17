@@ -1,4 +1,5 @@
 import java.awt.*;
+import java.util.ArrayList;
 
 public class GameObject {
     public Vector2 position = new Vector2();
@@ -9,6 +10,8 @@ public class GameObject {
     public double mass = 10.0;
     public double restitution = 0.6;
     public double frictionCoefficient = 0.3;
+
+    public ArrayList<String> collisionLayers = new ArrayList<>();
 
     public void Draw(Graphics2D g) { }
     public void Update(double deltaTime) { }
