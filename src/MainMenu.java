@@ -57,6 +57,9 @@ public class MainMenu {
 
             menuPanel.Button("Dash: Space", new Vector2(), new Vector2(1.0, 0.0));
             menuPanel.LayoutVertBAdded(0);
+
+            menuPanel.Button("Editor: E", new Vector2(), new Vector2(1.0, 0.0));
+            menuPanel.LayoutVertBAdded(0);
         menuPanel.ListEnd();
 
         menuPanel.End();

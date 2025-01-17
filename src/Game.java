@@ -158,22 +158,24 @@ public class Game extends JPanel implements Runnable, KeyListener {
             }
         });
         addMouseWheelListener(new MouseWheelListener() {
-           @Override
-           public void mouseWheelMoved(MouseWheelEvent e) {
-               Game.scrollThisFrame += e.getPreciseWheelRotation() * e.getScrollAmount();
-           } 
+            @Override
+            public void mouseWheelMoved(MouseWheelEvent e) {
+                Game.scrollThisFrame += e.getPreciseWheelRotation() * e.getScrollAmount(); // Update scroll value
+            }
         });
+        
         addMouseMotionListener(new MouseMotionListener() {
             @Override
             public void mouseMoved(MouseEvent e) {
                 if (Game.currentCursor != null) {
-                    game.setCursor(Game.currentCursor);
+                    game.setCursor(Game.currentCursor); // Update cursor on mouse move
                 }
             }
+        
             @Override
             public void mouseDragged(MouseEvent e) {
                 if (Game.currentCursor != null) {
-                    game.setCursor(Game.currentCursor);
+                    game.setCursor(Game.currentCursor); // Keep cursor during drag
                 }
             }
         });
@@ -195,25 +197,27 @@ public class Game extends JPanel implements Runnable, KeyListener {
         System.out.println("[LOG]: Starting game thread.");
         this.gameThread.start(); // Start game 
 
-
+        // Default sheet
         SpriteSheet def = Game.currentMap.LoadSpriteSheet("res/Tile_set.png", 16);
         
+        // Load map
         Game.currentMap.LoadFromFile("./res/map.wmap");
 
+        // Setup editor
         this.editor = new TileMapEditor(currentMap);
 
+        // Create menu
         menu = new MainMenu();
 
         // Maximize window
         this.parentJFrame.setExtendedState( this.parentJFrame.getExtendedState()|JFrame.MAXIMIZED_BOTH );
     }
-
     public static void LoadGame() {
         physics = new Physics();
-
-        Game.currentMap.LoadFromFile("./res/map.wmap");
+    
+        Game.currentMap.LoadFromFile("./res/map.wmap"); // Load the map file
         
-        player = new Humanoid("dino", 1000, 1000);
+        player = new Humanoid("dino", 1000, 1000); // Initialize the player
         gfxManager = new GFXManager();
         
         em = new EnemyManager();
@@ -223,29 +227,30 @@ public class Game extends JPanel implements Runnable, KeyListener {
         player.LoadAnimations();
         player.collisionLayers.add("player");
         gameStart = Game.now();
-
-
+    
+        // Set the player's starting position from the first spawn tile, if available
         ArrayList<Tile> spawnTiles = Game.currentMap.GetMapTilesByTag("player_spawn", null);
         if (spawnTiles.size() > 0) {
             Tile spawnTile = spawnTiles.get(0);
             player.position = Game.currentMap.LocalToWorldVectorPositional(new Vector2(spawnTile.x, spawnTile.y));
         }
-
-        humanoids.add(player);
-
-        Game.physics.SetCollidable("humanoid", "humanoid", false);
+    
+        humanoids.add(player); // Add the player to the humanoids list
+    
+        Game.physics.SetCollidable("humanoid", "humanoid", false); // Disable collisions between humanoids
     }
 
+    // Unloads the current game, saves the score, resets the map, and clears all game objects.
     public static void UnLoadGame() {
         if (Game.score > Game.currentMap.highScore) {
-            Game.currentMap.highScore = Game.score;
+            Game.currentMap.highScore = Game.score; // Update high score if needed
         }
 
-        Game.currentMap.Save("./res/map.wmap");
+        Game.currentMap.Save("./res/map.wmap"); // Save the map data
 
-        Game.currentMap = new TileMap(100, 100);
+        Game.currentMap = new TileMap(100, 100); // Reset the map
 
-        Game.currentMap.LoadFromFile("./res/map.wmap");
+        Game.currentMap.LoadFromFile("./res/map.wmap"); // Reload the map file
         
         player = null;
         gfxManager = null;
@@ -256,69 +261,53 @@ public class Game extends JPanel implements Runnable, KeyListener {
         
         physics = null;
 
-        humanoids.clear();
+        humanoids.clear(); // Clear all humanoids
 
-        Game.menu = new MainMenu();
+        Game.menu = new MainMenu(); // Set the menu to the main menu
     }
 
-    // static void PlaySound(String soundFile) {
-    //     File f = new File(soundFile);
-    //     AudioInputStream audioIn;
-    //     try {
-    //         audioIn = AudioSystem.getAudioInputStream(f.toURI().toURL());
-    //         Clip clip = AudioSystem.getClip();
-    //         clip.open(audioIn);
-    //         clip.start();
-    //     } catch (LineUnavailableException | UnsupportedAudioFileException | IOException e) {
-    //         e.printStackTrace();
-    //     }
-    // }
-
+    // Updates the game state, including player, menu, physics, and editor (if enabled).
     public void Update(double deltaTime) {
         if (Game.player != null && Game.player.health > 0) {
-            score = (int)(Game.now() - Game.gameStart)*20;
+            score = (int)(Game.now() - Game.gameStart) * 20; // Update score based on game time
         }
 
         if (Game.menu != null) {
-            Game.menu.Update(deltaTime);
+            Game.menu.Update(deltaTime); // Update the menu state
 
             if (Game.menu.state == MenuState.Play) {
                 Game.menu = null;
-                LoadGame();
+                LoadGame(); // Load the game when "Play" is selected
             } else if (Game.menu.state == MenuState.Quit) {
-                gameRunning = false;
+                gameRunning = false; // Stop the game when "Quit" is selected
             }
 
             return;
         }
 
-        Game.physics.PreUpdate();
+        Game.physics.PreUpdate(); // Run physics pre-update
 
-        /* Essentially the camera. */
+        // Camera transformation logic
         worldTransform = new AffineTransform();
         if (Game.player != null) {
-            worldTransform.translate(Game.WINDOW_WIDTH/2.0 - player.size.x / 2.0,
-                                     Game.WINDOW_HEIGHT/2.0 - player.size.y / 2.0);
-            
+            worldTransform.translate(Game.WINDOW_WIDTH / 2.0 - player.size.x / 2.0,
+                                    Game.WINDOW_HEIGHT / 2.0 - player.size.y / 2.0);
             worldTransform.translate(-player.position.x, -player.position.y);
         }
-        
+
+        // Calculate world mouse position
         Point mousePoint = new Point((int)mousePos.x, (int)mousePos.y);
         Point worldMousePoint = new Point();
         try {
             worldTransform.inverseTransform(mousePoint, worldMousePoint);
         } catch (NoninvertibleTransformException e) {
-            
+            // Handle exception if needed
         }
         Game.worldMousePos = new Vector2(worldMousePoint.x, worldMousePoint.y);
 
         Game.physics.currentMap = currentMap;
 
-        //Update player
-        // player.Update(deltaTime);
-        // Game.physics.physicsObjects.add(player);
-        //update each enemy
-    
+        // Update all humanoids, remove dead ones
         ArrayList<Integer> humansToRemove = new ArrayList<>();
         for (int i = 0; i < Game.humanoids.size(); i++) {
             Humanoid e = Game.humanoids.get(i);
@@ -336,26 +325,29 @@ public class Game extends JPanel implements Runnable, KeyListener {
             Game.humanoids.remove(i);
         }
 
+        // Update game managers
         if (Game.em != null) {
             em.Update(deltaTime);
         }
         if (Game.bm != null) {
             bm.Update(deltaTime);
         }
-        
+
+        // Update editor if enabled
         if (this.editorEnabled) {
             editor.Update(deltaTime);
         }
-        
+
+        // Toggle editor mode with 'E' key
         if (Game.IsKeyPressed(KeyEvent.VK_E)) {
             this.editorEnabled = !this.editorEnabled;
+            new Message("Editor " + (this.editorEnabled ? "enabled" : "disabled.") + " press E.", 5.0);
             if (this.editorEnabled && Game.IsKeyDown(KeyEvent.VK_SHIFT)) {
                 this.editor = new TileMapEditor(Game.currentMap);
             }
         }
 
-        Game.physics.Update(deltaTime);
-        // System.out.println("Game tick! At " + 1.0/deltaTime + "TPS");
+        Game.physics.Update(deltaTime); // Run physics update
     }
 
     private void DrawFPS(Graphics2D g) {
@@ -422,7 +414,11 @@ public class Game extends JPanel implements Runnable, KeyListener {
         if (Game.menu != null) {
             Game.menu.Draw(g);
         } else {
-            
+            g.setFont(Game.font32);
+            FontMetrics fm = g.getFontMetrics();
+            String text = "Score: " + Game.score;
+            int textWidth = fm.stringWidth(text);
+            g.drawString(text, Game.WINDOW_WIDTH/2-textWidth/2, 90); 
         }
 
         Panel.Draw(g);
