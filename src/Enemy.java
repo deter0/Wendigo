@@ -24,16 +24,15 @@ public class Enemy extends GameObject {
     }
 
     public void Update(double deltaTime) {
+        // Follow the player
+        int playerX = (int)Game.player.position.x;
+        int playerY = (int)Game.player.position.y;
 
 
         // Check proximity to the player to trigger an attack
-        if (Math.sqrt(Math.pow(Game.player.x - x, 2) + Math.pow(Game.player.y - y, 2)) < PLAYER_RADIUS) {
+        if (Math.sqrt(Math.pow(playerX - x, 2) + Math.pow(playerY - y, 2)) < PLAYER_RADIUS) {
             // Game.player.health--;
         } 
-
-        // Follow the player
-        int playerX = Game.player.x;
-        int playerY = Game.player.y;
 
         double dx = playerX - x;
         double dy = playerY - y;

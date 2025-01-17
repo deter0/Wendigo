@@ -23,7 +23,7 @@ public class Player extends GameObject {
     public Vector2 acceleration = new Vector2();
 
     public double dashCooldown = 2.0;
-    private double lastTimeDashed = 0;
+    protected double lastTimeDashed = 0;
 
     public Player(String name, int health, int maxHealth) {
         this.health = health;
@@ -140,5 +140,13 @@ public class Player extends GameObject {
         }
 
         HumanoidUpdate(deltaTime);
+    }
+
+    public boolean CanDash() {
+        double deltaDashed = Game.now() - lastTimeDashed;
+        if (deltaDashed > dashCooldown) {
+            return true;
+        }
+        return false;
     }
 }

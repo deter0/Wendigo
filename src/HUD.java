@@ -56,10 +56,10 @@ public class HUD {
 
         // Draw the dash image
         g.drawImage(dash, dashTransform, null);
-        if (Game.player.canDash) {
+        if (Game.player.CanDash()) {
             g.drawString("Dash: Ready", fixedX + 75, fixedY + 120);
         } else {
-            g.drawString("Dash: Cooling Down " + ((double)(System.currentTimeMillis() - Game.player.lastDashed) / 1000), fixedX + 80, fixedY + 120);
+            g.drawString("Dash: Cooling Down " + (int)(((Game.now() - Game.player.lastTimeDashed) / Game.player.dashCooldown)*100) + "%", fixedX + 80, fixedY + 120);
         }
         //Draw bullet image and corrosponding things
         g.drawImage(bullet, fixedX, fixedY + 15, null);
@@ -79,7 +79,7 @@ public class HUD {
 
         //player death screen once health reaches 0
         if (Game.player.health <= 0) {
-            Game.player.alive = false;
+            // Game.player.alive = false;
             g.setColor(Color.RED);
             g.setFont(Game.font64);
             g.drawImage(gameOver, Game.WINDOW_WIDTH / 2 - 300, Game.WINDOW_HEIGHT / 2 - 300, null);
