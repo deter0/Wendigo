@@ -99,14 +99,14 @@ public class Game extends JPanel implements Runnable, KeyListener {
     public static AffineTransform worldTransform = new AffineTransform();
 
     // Initialize the player
-    public static Player player = new Player(1000, 100);
+    public static Player player = new Player(300, 100);
     //initialize the weapon
     public static Weapon gun = new Weapon(1000, 10, 10, player);
     //create an array list of enemies
     public static ArrayList<Enemy> enemies = new ArrayList<Enemy>();
 
     //Create UI
-    public UI ui = new UI();
+    public HUD hud = new HUD();
 
     // Load test map
     TileMap testMap;
@@ -116,9 +116,9 @@ public class Game extends JPanel implements Runnable, KeyListener {
     public Vector2 testPosition = new Vector2();
 
     public Game(JFrame parentFrame) {
-        //Add enemies
-        // for (int i = 0; i < 10; i += 10){
-        //     enemies.add(new Enemy(i*100, 0));
+        // // Add enemies
+        // for (int i = 0; i < 100; i += 10){
+        //     enemies.add(new Enemy(i*10, 0));
         // }
 
         this.parentJFrame = parentFrame;
@@ -306,7 +306,7 @@ public class Game extends JPanel implements Runnable, KeyListener {
         g.setTransform(defaultTransform);
 
         //Draw the UI
-        ui.Draw(g);
+        hud.Draw(g);
         
         this.DrawFPS(g);
 
