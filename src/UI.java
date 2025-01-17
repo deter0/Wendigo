@@ -52,10 +52,11 @@ public class UI {
 
         // Draw the dash image
         g.drawImage(dash, dashTransform, null);
-        if (Game.player.canDash) {
+        // if (Game.player.canDash) {
+        if (true) {
             g.drawString("Ready", fixedX + 75, fixedY + 120);
         } else {
-            g.drawString("Cooldown " + ((double)(System.currentTimeMillis() - Game.player.lastDashed) / 1000), fixedX + 80, fixedY + 120);
+            // g.drawString("Cooldown " + ((double)(System.currentTimeMillis() - Game.player.lastDashed) / 1000), fixedX + 80, fixedY + 120);
         }
         //Draw bullet image and corrosponding things
         g.drawImage(bullet, fixedX, fixedY + 15, null);

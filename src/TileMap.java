@@ -301,7 +301,13 @@ class Tile {
     public int animNumFramesY = 1;
     public int animFPS = 15;
 
-    private int currentFrame = 0;
+    protected int animCurrentFrame = 0;
+    private double animStart = Game.now();
+    protected int animPlayedCount = 0;
+
+    public void ResetAnimation() {
+        this.animStart = Game.now();
+    }
 
     public void LoadFromFile(BufferedReader br, TileMap map) throws IOException {
         int x = TileMap.readInt(br, "x");
@@ -322,6 +328,8 @@ class Tile {
         Integer animFPS = TileMap.readInt(br, "anim_fps");
         Integer animFramesX = TileMap.readInt(br, "anim_frames_x");
         Integer animFramesY = TileMap.readInt(br, "anim_frames_y");
+
+        String tags = TileMap.readString(br, "tags");
 
         if (cx != null && cy != null && cw != null && ch != null) {
             this.collidorPos = new Vector2(cx, cy);
@@ -349,6 +357,14 @@ class Tile {
             this.animated = false;
         }
 
+        this.tags.clear();
+        if (tags != null && tags.length() > 0) {
+            String[] tagsSplit = tags.split(",");
+            for (String tag : tagsSplit) {
+                this.tags.add(tag);
+            }
+        }
+
         TileMap.GoToEnd(br);
         
         this.x = x;
@@ -363,7 +379,7 @@ class Tile {
     }
  
     public boolean isModified() {
-        return (this.w != 1 || this.h != 1 || this.collidable != false || this.animated == true);
+        return (this.w != 1 || this.h != 1 || this.collidable != false || this.animated == true || this.tags.size() > 0);
     }
 
     public void Set(Tile newTile) {
@@ -378,6 +394,7 @@ class Tile {
         this.animFPS = newTile.animFPS;
         this.animNumFramesX = newTile.animNumFramesX;
         this.animNumFramesY = newTile.animNumFramesY;
+        this.tags = new ArrayList<>(newTile.tags);
     }
 
     public void SaveToFile(FileWriter fw, TileMap map) throws IOException {
@@ -409,13 +426,29 @@ class Tile {
         fw.write("anim_frames_x=" + this.animNumFramesX + "\n");
         fw.write("anim_frames_y=" + this.animNumFramesY + "\n");
 
+        String tagString = "";
+        for (String tag : this.tags) {
+            tagString += (tag + ",");
+        } 
+        fw.write("tags="+tagString+"\n");
+
         fw.write("END\n");
     }
 
     public Tile Clone() {
         Tile t = new Tile(this.x, this.y, this.textureSheet, this.textureIndex);
+
+        // t.Clear();
+        t.collidable = this.collidable;
+        t.collidorPos = this.collidorPos.scale(1.0);
+        t.collidorSize = this.collidorSize.scale(1.0);
+        t.animated = this.animated;
+        t.animFPS = this.animFPS;
+        t.animNumFramesX = this.animNumFramesX;
+        t.animNumFramesY = this.animNumFramesY;
         t.w = this.w;
         t.h = this.h;
+        t.tags = new ArrayList<String>(this.tags);
 
         return t;
     }
@@ -440,6 +473,9 @@ class Tile {
         this.animNumFramesX = 1;
         this.animNumFramesY = 1;
         this.animFPS = 15;
+        this.animPlayedCount = 0;
+        this.animStart = Game.now();
+        this.tags.clear();
     }
 
     public boolean IsNull() {
@@ -491,7 +527,7 @@ class Tile {
         return true;
     }
 
-    public void Draw(Graphics2D g, double x, double y, double w, double h) {
+    public void Draw(Graphics2D g, double x, double y, double w, double h, boolean flip) {
         if (this.textureIndex == -1 || this.textureSheet == null) return;
 
         int tileSize = this.textureSheet.tileSize;
@@ -505,19 +541,34 @@ class Tile {
         int frameOffsetY = 0;
 
         if (this.animated) {
-            this.currentFrame = (int)((Game.now() * this.animFPS) % (this.animNumFramesX * this.animNumFramesY));
+            this.animCurrentFrame = (int)(((Game.now()-animStart) * this.animFPS) % (this.animNumFramesX * this.animNumFramesY));
 
-            frameOffsetX = (this.currentFrame % this.animNumFramesX);
+            this.animPlayedCount = (int)(((Game.now()-animStart) * this.animFPS) / (this.animNumFramesX * this.animNumFramesY));
+
+            frameOffsetX = (this.animCurrentFrame % this.animNumFramesX);
             frameOffsetY = 0;//(this.currentFrame / this.animNumFramesY);
         }
 
         sx = (sx+(frameOffsetX*this.w))*tileSize;
         sy = (sy+(frameOffsetY*this.h))*tileSize;
 
-        g.drawImage(this.textureSheet.GetImage(g),
-                    (int)x, (int)y, (int)(x+w), (int)(y+h),
-                    sx, sy, sx+sw, sy+sh,
-                    GG.COLOR_OPAQUE, null);
+        if (flip) {
+            g.drawImage(
+                this.textureSheet.GetImage(g),
+                (int) x, (int) y, (int) (x + w), (int) (y + h),  // Destination rectangle
+                sx + sw, sy, sx, sy + sh,                        // Source rectangle (flipped horizontally)
+                GG.COLOR_OPAQUE, null                            // Transparency and observer
+            );
+        } else {
+            g.drawImage(this.textureSheet.GetImage(g),
+                        (int)x, (int)y, (int)(x+w), (int)(y+h),
+                        sx, sy, sx+sw, sy+sh,
+                        GG.COLOR_OPAQUE, null);
+        }
+    }
+
+    public void Draw(Graphics2D g, double x, double y, double w, double h) {
+        this.Draw(g, x, y, w, h, false);
     }
 
     public String toString() {
@@ -825,9 +876,41 @@ class TileMap {
         }
     }
 
+    public Tile GetMapTileByTag(String tag, TileMapLayer layerMask) {
+        if (layerMask == null) {
+            for (TileMapLayer l : this.layers) {
+                for (Tile t : l.tiles) {
+                    if (t.tags.contains(tag)) {
+                        return t;
+                    }
+                }
+            }
+        } else {
+            for (Tile t : layerMask.tiles) {
+                if (t.tags.contains(tag)) {
+                    return t;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    public Tile GetSheetTileByTag(String tag) {
+        for (SpriteSheet ss : this.ownedSheets) {
+            for (Tile t :  ss.tiles) {
+                if (!t.IsNull()) {
+                    if (t.tags.contains(tag)) {
+                        return t;
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
     public void Draw(Graphics2D g) {
         int drewCount = 0;
-        
         
         TileMapLayer groundLayer = this.GetGroundLayer();
         if (groundLayer != null) {
@@ -898,7 +981,6 @@ class TileMap {
                 }
             }
         }
-
         
         double start = Game.now();
         for (int y = 0; y < this.height; y++) {
@@ -1040,7 +1122,6 @@ class TileMap {
         return value;
     }
 
-    
     public static String readString(BufferedReader br, String expectedHeader) throws IOException {
         if (gotEnd) return null;
 

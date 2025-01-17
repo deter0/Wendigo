@@ -80,11 +80,11 @@ public class Weapon {
 
     private void fire() {
         // Create a new projectile originating at the player's position
-        int startX = owner.x; // Center of the player
-        int startY = owner.y; // Center of the player
+        int startX = (int)owner.position.x; // Center of the player
+        int startY = (int)owner.position.y; // Center of the player
     
         // Use the owner's reflect property to determine direction
-        projectiles.add(new Projectile(startX, startY, range, dmg, owner.reflect));
+        projectiles.add(new Projectile(startX, startY, range, dmg, false));
     }
     
     // Inner class for projectiles

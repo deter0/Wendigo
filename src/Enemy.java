@@ -89,7 +89,7 @@ public class Enemy extends GameObject {
         //     transform.scale(-scaleFactor, scaleFactor);  // Flip horizontally and scale
         //     transform.translate(-RADIUS * scaleFactor, 0); // Move origin back
         // }
-        direction = x > Game.player.x;
+        direction = x > Game.player.position.x;
         if (direction) {
             transform.translate(currentFrame.getWidth() * scaleFactor, 0);
             transform.scale(-1.0, 1.0);
@@ -113,7 +113,7 @@ public class Enemy extends GameObject {
         attackTimer += deltaTime;
         frameTimer += deltaTime;
     
-        if (Math.sqrt(Math.pow(Game.player.x - x, 2) + Math.pow(Game.player.y - y, 2)) < PLAYER_RADIUS || x == Game.player.x) {
+        if (Math.sqrt(Math.pow(Game.player.position.x - x, 2) + Math.pow(Game.player.position.y - y, 2)) < PLAYER_RADIUS || x == Game.player.position.x) {
             // Start attacking
             isAttacking = true;
             if (attackTimer >= ATTACK_INTERVAL) {
@@ -141,8 +141,8 @@ public class Enemy extends GameObject {
         }
     
         // Follow the player
-        int playerX = Game.player.x;
-        int playerY = Game.player.y;
+        int playerX = (int)Game.player.position.x;
+        int playerY = (int)Game.player.position.y;
     
         double dx = playerX - x;
         double dy = playerY - y;

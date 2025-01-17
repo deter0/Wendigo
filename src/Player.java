@@ -1,204 +1,120 @@
 import java.awt.*;
 import java.awt.event.KeyEvent;
-import java.awt.geom.AffineTransform;
-import java.awt.image.BufferedImage;
-import java.io.File;
-import javax.imageio.ImageIO;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
+
+enum AnimationState {
+    IDLE,
+    WALK
+};
 
 public class Player extends GameObject {
-    public int x = 0, y = 0;
-    private BufferedImage idleSpriteSheet, runSpriteSheet;
-    private BufferedImage[] idleFrames, runFrames;
-    private BufferedImage[] currentFrames; // Active frame set
-    public long lastDashed; //check how long its been sicne player has dashed
-    public boolean canDash = true; //check if player can dash
-    private int currentFrame = 0;
-    protected int frameWidth;
-    protected int frameHeight;
-    private double dx = 0;
-    private double dy = 0;
-    public boolean reflect;
-    private int speed = 500;
-    private long lastFrameTime = 0;
-    private final int FRAME_DELAY = 100; // 100ms between frames
-    private boolean isMoving = false;
+    protected String name;
+
     public int health;
+    protected int maxHealth;
+    
+    protected AnimationState state = AnimationState.IDLE;
+    protected HashMap<AnimationState, Tile> animations = new HashMap<>();
+    
+    public Vector2 lookAtPoint = new Vector2();
+    public Vector2 acceleration = new Vector2();
 
-    private double scale = 2.5;
-
-    // Afterimage data
-    private ArrayList<AfterimageData> afterimages = new ArrayList<>();
-    private final int AFTERIMAGE_LIFESPAN = 300; // Milliseconds
-    private final int MAX_AFTERIMAGES = 5;
-    private final int DASH_DISTANCE = 500;
-
-    public Player(int health, int maxHealth) {
+    public Player(String name, int health, int maxHealth) {
         this.health = health;
-        try {
-            // Load idle sprite sheet
-            idleSpriteSheet = ImageIO.read(new File("res/PlayerIdle.png"));
-            frameWidth = idleSpriteSheet.getWidth() / 5; // 5 columns
-            frameHeight = 48;//idleSpriteSheet.getHeight(); // 1 row
-            idleFrames = new BufferedImage[5];
-            for (int i = 0; i < 5; i++) {
-                idleFrames[i] = idleSpriteSheet.getSubimage(i * frameWidth, 0, frameWidth, frameHeight);
+        this.name = name;
+        this.maxHealth = maxHealth;
+    }
+
+    public void LoadAnimations() {
+        LoadAnimations(this.name);
+    }
+
+    public void LoadAnimations(String prefix) {
+        if (Game.currentMap == null) return;
+
+        for (AnimationState state : AnimationState.values()) {
+            String stateString = state.name().toLowerCase();
+            String tag = prefix.toLowerCase() + "_" + stateString;
+
+            Tile t = Game.currentMap.GetSheetTileByTag(tag);
+            if (t == null) {
+                new Message("Couldn't find animation: `" + tag + "`");
+            } else {
+                System.out.println("[LOG] Loaded animation: " + tag);
+                this.animations.put(state, t);
             }
-
-            // Load run sprite sheet
-            runSpriteSheet = ImageIO.read(new File("res/PlayerRun.png"));
-            runFrames = new BufferedImage[6];
-            for (int i = 0; i < 6; i++) {
-                runFrames[i] = runSpriteSheet.getSubimage(i * frameWidth, 0, frameWidth, frameHeight);
-            }
-
-            // Start with idle animation
-            currentFrames = idleFrames;
-
-        } catch (Exception e) {
-            e.printStackTrace();
         }
+
+    }
+
+    private void HumanoidDraw(Graphics2D g) {
+        // Check if the player can dash again
+        Tile currentAnimatedTile = this.animations.get(this.state);
+        Vector2 size = new Vector2(100, 100);
+
+        Vector2 lookAtDelta = this.lookAtPoint.sub(this.position);
+
+        if (currentAnimatedTile != null) {
+            size = Game.currentMap.LocalToWorldVectorScalar(new Vector2(currentAnimatedTile.w, currentAnimatedTile.h));
+
+            currentAnimatedTile.Draw(g, this.position.x, this.position.y, size.x, size.y, lookAtDelta.x < 0 ? true : false);
+
+            // System.out.println(lookAtDelta.x);
+        }
+
+        this.size = size;
     }
 
     public void Draw(Graphics2D g) {
-        // Check if the player can dash again
-        if (lastDashed != 0 && System.currentTimeMillis() - lastDashed > 3000) {
-            canDash = true;
-        }
-        
-        // Draw afterimages
-        long currentTime = System.currentTimeMillis();
-        for (AfterimageData afterimage : afterimages) {
-            if (currentTime - afterimage.timestamp < AFTERIMAGE_LIFESPAN) {
-                float alpha = 1.0f - (float) (currentTime - afterimage.timestamp) / AFTERIMAGE_LIFESPAN; // Fade effect
-                AffineTransform transform = new AffineTransform();
-                transform.translate(afterimage.x, afterimage.y); // Regular position
-                transform.scale(2.5, 2.5); // Scale up
-                transform.scale(afterimage.reflect ? -1.0 : 1.0, 1.0);
-                transform.translate(-frameWidth/2.0, -frameHeight/2.0);
-                g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
-                g.drawImage(afterimage.image, transform, null);
-            }
-        }
-        g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1.0f)); // Reset alpha
+        HumanoidDraw(g);
+    }
 
-        // Calculate the center of the drawn image
-        int centerX = x + frameWidth / 2;
+    public void HumanoidUpdate(double deltaTime) {
+        this.state = this.velocity.magnitude() > 1 ? AnimationState.WALK : AnimationState.IDLE;
 
-        // Check if the mouse is to the left or right of the center of the image
-        reflect = Game.worldMousePos.x < centerX;
-
-        // Create a transform for reflection if needed
-        AffineTransform transform = new AffineTransform();
-
-        transform.translate(x, y); // Regular position
-        transform.translate(-40, 0);
-
-        transform.scale(this.reflect ? -1.0 : 1.0, 1.0);
-        if (this.reflect) {
-            transform.translate(-frameWidth*scale, 0);
-        }
-
-        transform.scale(scale, scale); // Scale up
-
-        // Safeguard against null or invalid frames
-        if (currentFrames == null) {
-            return;
-        }
-        if (currentFrame < 0 || currentFrame >= currentFrames.length) {
-            //System.err.println("Error: CurrentFrame index is out of bounds! Index: " + currentFrame);
-            currentFrame = 0; // Reset to avoid crash
-        }
-        if (currentFrames[currentFrame] == null) {
-            System.err.println("Error: Current frame is null at index: " + currentFrame);
-            return;
-        }
-
-        // Draw the current frame with the transform
-        
-        g.drawImage(currentFrames[currentFrame], transform, null);
-
-        // Update to the next frame if enough time has passed
-        currentTime = System.currentTimeMillis(); // Use milliseconds for simpler timing
-        if (currentTime - lastFrameTime > FRAME_DELAY) {
-            currentFrame = (currentFrame + 1) % currentFrames.length;
-            lastFrameTime = currentTime;
-        }
+        this.velocity = this.velocity.add(this.acceleration.scale(deltaTime));
+        this.acceleration = this.acceleration.scale(0.75);
     }
 
     public void Update(double deltaTime) {
-        x = (int)position.x;
-        y = (int)position.y;
+        final double SPEED = 100;
 
-        dx = 0;
-        dy = 0;
-
+        Vector2 movementVector = new Vector2();
         if (Game.IsKeyDown(KeyEvent.VK_W)) {
-            dy -= 1;
+            movementVector.y = -1;
+        } else if (Game.IsKeyDown(KeyEvent.VK_S)) {
+            movementVector.y = 1;
         }
-        if (Game.IsKeyDown(KeyEvent.VK_S)) {
-            dy += 1;
-        }
+        
         if (Game.IsKeyDown(KeyEvent.VK_A)) {
-            dx -= 1;
-        }
-        if (Game.IsKeyDown(KeyEvent.VK_D)) {
-            dx += 1;
+            movementVector.x = -1;
+        } else if (Game.IsKeyDown(KeyEvent.VK_D)) {
+            movementVector.x = 1;
         }
 
-        if (Game.IsKeyPressed(KeyEvent.VK_SPACE) && (dx != 0 || dy != 0) && canDash) {
-            canDash = false;
-            lastDashed = System.currentTimeMillis();
-            // Add afterimages
-            Vector2 offset = new Vector2(dx, dy).normalize(); // Make sure dashing is even on diagonals
-            for (int i = 0; i < MAX_AFTERIMAGES; i++) {
-                afterimages.add(new AfterimageData(
-                    (int)(x + offset.x * DASH_DISTANCE * (0.2 * i)), 
-                    (int)(y + offset.y * DASH_DISTANCE * (0.2 * i)), 
-                    currentFrames[currentFrame], 
-                    reflect, 
-                    System.currentTimeMillis()
-                ));
+        this.velocity = this.velocity.add(movementVector.scale(SPEED));
+
+        this.lookAtPoint = Game.worldMousePos;
+
+        if (Game.IsKeyPressed(KeyEvent.VK_SPACE)) {
+            Game.gfxManager.PlayGFXOnce("smoke_cloud", this.position.add(this.size.scale(0.5)), 1.5);
+
+            if (this.velocity.magnitude() > 0) {
+                this.velocity = this.velocity.add(this.velocity.normalize().scale(SPEED * 24.0));
             }
-
-            x += DASH_DISTANCE * offset.x;
-            y += DASH_DISTANCE * offset.y;
         }
 
-        // Normalize the movement vector
-        double length = Math.sqrt(dx * dx + dy * dy);
-        isMoving = length != 0; // Determine if the player is moving
-
-        if (length != 0) {
-            dx /= length;
-            dy /= length;
+        if (Game.IsKeyPressed(KeyEvent.VK_R)) {
+            Game.gfxManager.PlayGFXOnce("real_rah", this.position.add(this.size.scale(0.5)).sub(new Vector2(0, this.size.y)), 1.5);
         }
 
-        // Apply movement scaled by speed and deltaTime
-        x += dx * speed * deltaTime;
-        y += dy * speed * deltaTime;
-
-        // Switch between animations based on movement
-        currentFrames = isMoving ? runFrames : idleFrames;
-
-        this.position = new Vector2(x, y);
-        // this.velocity = new Vector2(dx * speed, dy * speed);
-        this.size = new Vector2(this.frameWidth * scale * 0.4, this.frameHeight * scale * 0.8);
-    }
-
-    // Data structure for afterimages
-    private class AfterimageData {
-        int x, y;
-        BufferedImage image;
-        boolean reflect;
-        long timestamp;
-
-        AfterimageData(int x, int y, BufferedImage image, boolean reflect, long timestamp) {
-            this.x = x;
-            this.y = y;
-            this.image = image;
-            this.reflect = reflect;
-            this.timestamp = timestamp;
+        if (Game.IsKeyPressed(KeyEvent.VK_F)) {
+            Game.gfxManager.PlayGFXOnce("gfx_star_spin", this.position.add(this.size.scale(0.5)), 1.5);
         }
+
+        HumanoidUpdate(deltaTime);
     }
 }
