@@ -7,6 +7,8 @@ public class GameObject {
     public boolean isDrawn = true;
     public boolean isUpdated = true;
     public double mass = 10.0;
+    public double restitution = 0.6;
+    public double frictionCoefficient = 0.3;
 
     public void Draw(Graphics2D g) { }
     public void Update(double deltaTime) { }

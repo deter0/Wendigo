@@ -90,6 +90,9 @@ public class Game extends JPanel implements Runnable, KeyListener {
         return (double)System.nanoTime() / (double)1e9;
     }
 
+    // Load default map
+    static TileMap currentMap = new TileMap(100, 100);
+
     // Current cursor
     public static Cursor currentCursor = null;
 
@@ -98,13 +101,9 @@ public class Game extends JPanel implements Runnable, KeyListener {
 
     public static AffineTransform worldTransform = new AffineTransform();
 
-    // Initialize the player
-    public static Player player = new Player(300, 100);
-    //initialize the weapon
-    public static Weapon gun = new Weapon(1000, 10, 10, player);
     //create an array list of enemies
     public static ArrayList<Enemy> enemies = new ArrayList<Enemy>();
-
+    
     //Create UI
     public HUD hud = new HUD();
 
@@ -112,8 +111,14 @@ public class Game extends JPanel implements Runnable, KeyListener {
     TileMap testMap;
     TileMapEditor editor;
     public boolean editorEnabled = false;
+    
+    // Initialize the player
+    public static Player player = new Player("dino", 1000, 100);
 
-    public Vector2 testPosition = new Vector2();
+    //initialize the weapon
+    public static Weapon gun = new Weapon(1000, 10, 10, player);
+    
+    public static GFXManager gfxManager;
 
     public Game(JFrame parentFrame) {
         // // Add enemies
@@ -184,12 +189,13 @@ public class Game extends JPanel implements Runnable, KeyListener {
         this.gameThread.start(); // Start game 
 
 
-        this.testMap = new TileMap(100, 100);
-        SpriteSheet def = this.testMap.LoadSpriteSheet("res/Tile_set.png", 16);
-        
-        this.editor = new TileMapEditor(testMap);
-        
-        this.testMap.LoadFromFile("./res/map.wmap");
+        SpriteSheet def = Game.currentMap.LoadSpriteSheet("res/Tile_set.png", 16);
+        this.editor = new TileMapEditor(currentMap);
+
+        Game.currentMap.LoadFromFile("./res/map.wmap");
+
+        gfxManager = new GFXManager();
+        player.LoadAnimations();
 
         // Maximize window
         this.parentJFrame.setExtendedState( this.parentJFrame.getExtendedState()|JFrame.MAXIMIZED_BOTH );
@@ -205,17 +211,17 @@ public class Game extends JPanel implements Runnable, KeyListener {
             testObject.velocity = new Vector2(10, 0);
         }
 
-        Game.physics.currentMap = testMap;
+        Game.physics.currentMap = currentMap;
         
         Game.physics.physicsObjects.add(testObject);
         Game.physics.physicsObjects.add(player);
 
         /* Essentially the camera. */
         worldTransform = new AffineTransform();
-        worldTransform.translate(Game.WINDOW_WIDTH/2.0 - player.frameWidth / 2.0,
-                                 Game.WINDOW_HEIGHT/2.0 - player.frameHeight / 2.0);
+        worldTransform.translate(Game.WINDOW_WIDTH/2.0 - player.size.x / 2.0,
+                                 Game.WINDOW_HEIGHT/2.0 - player.size.y / 2.0);
         
-        worldTransform.translate(-player.x, -player.y);
+        worldTransform.translate(-player.position.x, -player.position.y);
         
         Point mousePoint = new Point((int)mousePos.x, (int)mousePos.y);
         Point worldMousePoint = new Point();
@@ -242,11 +248,12 @@ public class Game extends JPanel implements Runnable, KeyListener {
         if (Game.IsKeyPressed(KeyEvent.VK_E)) {
             this.editorEnabled = !this.editorEnabled;
             if (this.editorEnabled && Game.IsKeyDown(KeyEvent.VK_SHIFT)) {
-                this.editor = new TileMapEditor(this.testMap);
+                this.editor = new TileMapEditor(Game.currentMap);
             }
         }
 
         Game.physics.Update(deltaTime);
+        Game.physics.PostUpdate();
         // System.out.println("Game tick! At " + 1.0/deltaTime + "TPS");
     }
 
@@ -272,13 +279,15 @@ public class Game extends JPanel implements Runnable, KeyListener {
         AffineTransform defaultTransform = g.getTransform();
 
         g.setTransform(Game.worldTransform);
-        testMap.Draw(g);
+        currentMap.Draw(g);
 
         //draw player obj
         // player.Draw(g);
-        testMap.ResetResponsiblities();
+        currentMap.ResetResponsiblities();
 
-        testMap.RenderResponsibly(player);
+        currentMap.RenderResponsibly(player);
+
+        gfxManager.Draw(g);
         // testMap.RenderResponsibly(badguy);
         //draw the weapon projectiles
         gun.Draw(g);
@@ -301,7 +310,7 @@ public class Game extends JPanel implements Runnable, KeyListener {
             e.Draw(g);
         }
         
-        Game.physics.Draw(g);
+        // Game.physics.Draw(g);
         
         g.setTransform(defaultTransform);
 

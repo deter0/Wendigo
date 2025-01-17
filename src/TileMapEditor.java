@@ -345,7 +345,41 @@ class TileMapEditor {
                             sheetEdPanel.EntryEnd();
                         }
                     }
+
+                    if (this.sslSelection.size() == 1) {
+                        Tile t = this.sslSelection.get(0);
+                        sheetEdPanel.EntryBegin("Tile Tags");
+                        if (sheetEdPanel.EntryButton("Add")) {
+                            this.enteringNewTag = true;
+                        }
+                        if (this.enteringNewTag == true) {
+                            if (Panel.InputField("Enter tag:", null)) {
+                                String tag = Panel.inputInput;
+                                if (tag.contains(",")) {
+                                    new Message("Tag cannot have commas in them.", true);
+                                } else {
+                                    t.tags.add(tag);
+                                }
+                                this.enteringNewTag = false;
+                            }
+                        }
+                        sheetEdPanel.EntryEnd();
+
+                        Iterator<String> iterator = t.tags.iterator();
+                        while (iterator.hasNext()) {
+                            String tag = iterator.next();
+
+                            sheetEdPanel.EntryBegin("Tag: `" + tag + "`");
+
+                            if (sheetEdPanel.EntryButton("Delete")) {
+                                iterator.remove(); // Remove method to avoid exception
+                            }
+                            
+                            sheetEdPanel.EntryEnd();
+                        }
+                    }
                     sheetEdPanel.ListEnd();
+
     
                     if (sheetEdPanel.Button("Cancel", new Vector2(Panel.PADDING, 0), new Vector2(0, 40))) {
                         this.sslReset();
