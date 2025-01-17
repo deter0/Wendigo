@@ -108,8 +108,6 @@ public class Game extends JPanel implements Runnable, KeyListener {
     //Create UI
     public static HUD hud;
 
-    // Load test map
-    TileMap testMap;
     TileMapEditor editor;
     public boolean editorEnabled = false;
     

@@ -158,9 +158,9 @@ class Panel {
     /*
      * Max size we accept the input to be.
      */
-    public static int inputMaxSize = 128;
-    private static boolean inputOpen = false;
-    private static boolean inputJustClosed = false;
+    public    static int inputMaxSize = 128;
+    private   static boolean inputOpen = false;
+    private   static boolean inputJustClosed = false;
     protected static String inputInput = null; // The text
     
     /* For anything we need to draw on top of everything, we defer it to this function.

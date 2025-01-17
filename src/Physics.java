@@ -182,7 +182,7 @@ public class Physics {
         }
     }
 
-    public ArrayList<Vector2> getLineRectangleIntersection(Vector2 p1, Vector2 p2, Rectangle rect) {
+    private ArrayList<Vector2> getLineRectangleIntersection(Vector2 p1, Vector2 p2, Rectangle rect) {
         ArrayList<Vector2> intersections = new ArrayList<>();
     
         // Rectangle edges represented as lines
